@@ -20,10 +20,15 @@
 #include <string.h>
 
 #include "data.h"
-#include "gfx.h"
 #include "textgfx.h"
 #include "ui.h"
 #include "rgb.h" 
+
+#ifndef __HAS_GFX
+#include "gfx.h"
+#define __HAS_GFX
+#endif
+
 #ifndef __HAS_BMP
 #include "bmp.h"
 #define __HAS_BMP
@@ -33,6 +38,7 @@
 // bitmap elements, as we may need to repaint the screen at
 // periodic intervals after having dialogue boxes or menus open.
 bmpdata_t 	*ui_checkbox_bmp;
+bmpdata_t 	*ui_checkbox_choose_bmp;
 bmpdata_t 	*ui_checkbox_empty_bmp;
 bmpdata_t 	*ui_border_left_bmp;
 bmpdata_t 	*ui_border_right_bmp;
@@ -58,9 +64,29 @@ fontdata_t 	*ui_status_font;
 static int 	ui_fonts_status;
 static int 	ui_assets_status;
 
+void ui_Init(){
+	// Set the basic palette entries for all the user interface elements
+	// NOT including any bitmaps we load - just the basic colours
+	
+	// Mix some colours into grbi
+	PALETTE_UI_BLACK = rgb888_2grb(0, 0, 0, 0);
+	PALETTE_UI_WHITE = rgb888_2grb(255, 255, 255, 0);
+	PALETTE_UI_LGREY = rgb888_2grb(180, 180, 180, 0);
+	PALETTE_UI_MGREY = rgb888_2grb(90, 90, 90, 0);
+	PALETTE_UI_DGREY = rgb888_2grb(30, 30, 30, 0);
+	PALETTE_UI_RED = rgb888_2grb(220, 0, 0, 0);
+	PALETTE_UI_GREEN = rgb888_2grb(0, 220, 0, 0);
+	PALETTE_UI_BLUE = rgb888_2grb(70, 123, 212, 1);
+	PALETTE_UI_YELLOW = rgb888_2grb(180, 220, 20, 0);
+	
+	// Set palette entries for the text ram
+	tvramSetPal(PALETTE_UI_WHITE_TEXT, PALETTE_UI_WHITE);
+}
+
 void ui_Close(){
 	if (ui_assets_status == UI_ASSETS_LOADED){
 		bmp_Destroy(ui_checkbox_bmp);
+		bmp_Destroy(ui_checkbox_choose_bmp);
 		bmp_Destroy(ui_checkbox_empty_bmp);
 		bmp_Destroy(ui_under_artwork_bmp);
 		bmp_Destroy(ui_under_browser_bmp);
@@ -73,6 +99,526 @@ void ui_Close(){
 		bmp_Destroy(ui_textbox_right_bmp);
 		bmp_Destroy(ui_font_bmp);
 	}
+}
+
+int ui_DisplayArtwork(FILE *screenshot_file, bmpdata_t *screenshot_bmp, bmpstate_t *screenshot_state, state_t *state, imagefile_t *imagefile){
+
+	int status;
+	int has_screenshot;
+	char msg[64];
+	
+	// Restart artwork display
+	// =======================
+	// Close previous screenshot file handle
+	// =======================
+	if (screenshot_file != NULL){
+		fclose(screenshot_file);
+		screenshot_file = NULL;
+	}
+	
+	// Clear artwork window
+	gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
+	
+	// Construct full path of image
+	sprintf(msg, "%s\\%s", state->selected_game->path, imagefile->filename[imagefile->selected]);
+	strcpy(state->selected_image, msg);
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_DisplayArtwork() Selected artwork [%d] filename [%s]\n", __FILE__, __LINE__, imagefile->selected, imagefile->filename[imagefile->selected]);
+	}
+	
+	// =======================
+	// Open new screenshot file, ready parse
+	// =======================
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_DisplayArtwork() Opening artwork file\n", __FILE__, __LINE__);	
+	}
+	screenshot_file = fopen(state->selected_image, "rb");
+	if (screenshot_file == NULL){
+		if (UI_VERBOSE){
+			printf("%s.%d\t ui_DisplayArtwork() Error, unable to open artwork file\n", __FILE__, __LINE__);	
+		}
+		has_screenshot = 0;
+	} 
+	else {
+		// =======================
+		// Load header of screenshot bmp
+		// =======================
+		if (UI_VERBOSE){
+			printf("%s.%d\t ui_DisplayArtwork() Reading BMP header\n", __FILE__, __LINE__);	
+		}
+	
+		status = bmp_ReadImage(screenshot_file, screenshot_bmp, 1, 0);
+		has_screenshot = 1;	
+		if (has_screenshot){
+			screenshot_state->rows_remaining = screenshot_bmp->height;
+			status = gvramBitmapAsyncFull(ui_artwork_xpos + ((ui_artwork_width - screenshot_bmp->width) / 2) , ui_artwork_ypos + ((ui_artwork_height - screenshot_bmp->height) / 2), screenshot_bmp, ui_asset_reader, screenshot_state);
+		}
+	}
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_DisplayArtwork() Call to display %s complete\n", __FILE__, __LINE__, imagefile->filename[imagefile->selected]);	
+	}
+	if (screenshot_file != NULL){
+		fclose(screenshot_file);
+		screenshot_file = NULL;
+	}
+	return UI_OK;
+}
+
+int ui_DrawFilterPrePopup(state_t *state, int toggle){
+	// Draw a popup that allows the user to toggle filter mode between genre, series and off
+
+	// Draw drop-shadow
+	//gvramBoxFillTranslucent(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 10, ui_launch_popup_xpos + 10 + ui_launch_popup_width, ui_launch_popup_ypos + 10 + ui_launch_popup_height + 30, PALETTE_UI_DGREY);
+	
+	// Draw main box
+	gvramBoxFill(ui_launch_popup_xpos, ui_launch_popup_ypos, ui_launch_popup_xpos + ui_launch_popup_width, ui_launch_popup_ypos + ui_launch_popup_height + 90, PALETTE_UI_BLACK);
+	
+	// Draw main box outline
+	gvramBox(ui_launch_popup_xpos, ui_launch_popup_ypos, ui_launch_popup_xpos + ui_launch_popup_width, ui_launch_popup_ypos + ui_launch_popup_height + 90, PALETTE_UI_LGREY);
+	
+	// Box title
+	tvramPuts(ui_launch_popup_xpos + 90, ui_launch_popup_ypos + 10, ui_progress_font, "Enable Filter?");
+	// No filter text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 35, ui_progress_font, "No filter - Show all games");
+	// Genre filter text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 65, ui_progress_font, "By Genre");
+	// Series filter text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 95, ui_progress_font, "By Series");
+	// Copmany filter text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 125, ui_progress_font, "By Company");
+	// Tech specs filter text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 155, ui_progress_font, "By Technical Specs");
+	
+	// Toggle which entry is selected
+	if (toggle == 1){
+		state->selected_filter++;	
+	} 
+	if (toggle == -1){
+		state->selected_filter--;	
+	}
+	
+	// Detect wraparound
+	if (state->selected_filter >= FILTER_MAX){
+		state->selected_filter = FILTER_MAX;
+	}
+	if (state->selected_filter < 1){
+		state->selected_filter = FILTER_NONE;
+	}
+	
+	if (state->selected_filter == FILTER_NONE){
+		// none
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 95, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 125, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 155, ui_checkbox_empty_bmp);
+	}
+	if (state->selected_filter == FILTER_GENRE){
+		// genre
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 95, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 125, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 155, ui_checkbox_empty_bmp);
+	}
+	if (state->selected_filter == FILTER_SERIES){
+		// series
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 95, ui_checkbox_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 125, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 155, ui_checkbox_empty_bmp);
+	}
+	if (state->selected_filter == FILTER_COMPANY){
+		// developer/company/publisher
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 95, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 125, ui_checkbox_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 155, ui_checkbox_empty_bmp);
+	}
+	if (state->selected_filter == FILTER_TECH){
+		// developer/company/publisher
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 95, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 125, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 155, ui_checkbox_bmp);
+	}
+	
+	return UI_OK;
+}
+
+int	ui_DrawConfirmPopup(state_t *state, gamedata_t *gamedata, launchdat_t *launchdat){
+	// Draw a confirmation box to start the game
+	
+	// Draw drop-shadow
+	//gvramBoxFillTranslucent(ui_launch_popup_xpos + 60, ui_launch_popup_ypos - 30, ui_launch_popup_xpos + 260, ui_launch_popup_ypos + 50, PALETTE_UI_DGREY);
+	
+	// Draw main box
+	gvramBoxFill(ui_launch_popup_xpos + 50, ui_launch_popup_ypos - 40, ui_launch_popup_xpos + 250, ui_launch_popup_ypos + 40, PALETTE_UI_BLACK);
+	
+	// Draw main box outline
+	gvramBox(ui_launch_popup_xpos + 50, ui_launch_popup_ypos - 40, ui_launch_popup_xpos + 250, ui_launch_popup_ypos + 40, PALETTE_UI_LGREY);
+	
+	tvramPuts(ui_launch_popup_xpos + 110, ui_launch_popup_ypos - 30, ui_progress_font, "Start Game?");
+	
+	tvramPuts(ui_launch_popup_xpos + 60, ui_launch_popup_ypos - 5, ui_progress_font, "Confirm (Enter)");
+	tvramPuts(ui_launch_popup_xpos + 60, ui_launch_popup_ypos + 15, ui_progress_font, "Cancel (Esc)");
+	
+	
+	return UI_OK;
+}
+
+int ui_DrawFilterPopup(state_t *state, int select, int redraw, int toggle){
+	// Draw a page of filter choices for the user to select
+	// The 'redraw' parameter controls whether the text and background should be redrawn
+	// on this page... if just scrolling between choices, only the 
+	// checkbox bitmap is redrawn, all of the text and background can
+	// be left as-is, and hence speed up the interface redraw.
+	// The 'toggle' parameter controls whether we move the selection bitmap or not.
+	
+	int offset;
+	int min_selection;
+	int max_selection;
+	int i;
+	int page_i;
+	int status;
+	char msg[64]; // Title
+	
+	// Draw drop-shadow
+	//gfx_BoxFillTranslucent(40, 50, GFX_COLS - 30, GFX_ROWS - 20, PALETTE_UI_DGREY);
+	
+	// The minimum and maximum index of the filter strings we can select
+	min_selection = 0;
+	max_selection = 0;
+	
+	if (redraw == 0){
+		// Only paint the selection window if this is an entirely new window or new page of filters
+		// Draw main box
+		gvramBoxFill(30, 40, GFX_COLS - 40, GFX_ROWS - 40, PALETTE_UI_BLACK);
+		// Draw main box outline
+		gvramBox(30, 40, GFX_COLS - 40, GFX_ROWS - 40, PALETTE_UI_LGREY);
+	}
+	
+	
+	if (state->selected_filter == FILTER_TECH){
+		// Tech specs filtering uses a multi-choice interface
+		ui_DrawMultiChoiceFilterPopup(state, select, redraw, toggle);
+	} else {
+		
+		// All other single-choice filters		
+		// Only print the Window title if we are painting an entirely new window
+		if (redraw == 0){
+			if (state->selected_filter == FILTER_GENRE){
+				sprintf(msg, "Select Genre - Page %d/%d - Enter to confirm", state->current_filter_page + 1, state->available_filter_pages);
+				tvramPuts(160, 45, ui_progress_font, msg);
+			}
+			if (state->selected_filter == FILTER_SERIES){
+				sprintf(msg, "Select Series - Page %d/%d - Enter to confirm", state->current_filter_page + 1, state->available_filter_pages);
+				tvramPuts(160, 45, ui_progress_font, msg);
+			}
+			if (state->selected_filter == FILTER_COMPANY){
+				sprintf(msg, "Select Company - Page %d/%d - Enter to confirm", state->current_filter_page + 1, state->available_filter_pages);
+				tvramPuts(160, 45, ui_progress_font, msg);
+			}
+		}
+		
+		// Move the selection through the on-screen choices
+		if (select == -1){
+			state->selected_filter_string--;
+		}
+		if (select == 1){
+			state->selected_filter_string++;
+		}
+			
+		// We only draw filter string choices from
+		// the currently selected page of filter strings,
+		// which is held in the state->current_filter_page variable.
+		offset = state->current_filter_page * MAXIMUM_FILTER_STRINGS_PER_PAGE;
+		min_selection = offset;
+		
+		// Are there more slots on this page than there are total strings?
+		if (min_selection + MAXIMUM_FILTER_STRINGS_PER_PAGE > state->available_filter_strings){
+			// Upper limit is the total number of strings
+			max_selection = state->available_filter_strings;
+		} else {
+			// Upper limit is the offset plus the total strings on this page
+			max_selection = 	offset + MAXIMUM_FILTER_STRINGS_PER_PAGE;
+		}
+		 
+		// Dont allow cursor to go below first string on page
+		if (state->selected_filter_string < min_selection){
+			state->selected_filter_string = min_selection;
+		}
+		// Dont allow cursor to go above last string on page
+		if (state->selected_filter_string >= max_selection){
+			state->selected_filter_string = max_selection - 1;
+		}
+		
+		// Loop through and print the list of choices on this page, highlighting the currently
+		// selected choice.
+		for(i=offset; i<MAXIMUM_FILTER_STRINGS; i++){
+			
+			// We may (probably are) be starting part way
+			// into the list of filter strings if we are on page > 1.
+			page_i = i - offset;
+			
+			if ((state->filter_strings[i] != NULL) && (strcmp(state->filter_strings[i], "") != 0)){
+			
+				// Column 1
+				if (page_i < MAXIMUM_FILTER_STRINGS_PER_COL){
+					if (i == state->selected_filter_string){
+						// This is selected
+						gvramBitmap(45, 70 + (page_i * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(45, 70 + (page_i * 25), ui_checkbox_empty_bmp);
+					}
+					// Only print the text if we are painting an entirely new window
+					if (redraw == 0){
+						tvramPuts(70, 70 + (page_i * 25), ui_progress_font, state->filter_strings[i]);
+					}
+				}
+				
+				// Column 2
+				if ((page_i >= MAXIMUM_FILTER_STRINGS_PER_COL) && (page_i < (2 * MAXIMUM_FILTER_STRINGS_PER_COL))){
+					if (i == state->selected_filter_string){
+						// This is selected
+						gvramBitmap(230, 70 + ((page_i - 11) * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(230, 70 + ((page_i - 11) * 25), ui_checkbox_empty_bmp);
+					}
+					// Only print the text if we are painting an entirely new window
+					if (redraw == 0){
+						tvramPuts(255, 70 + ((page_i - 11) * 25), ui_progress_font, state->filter_strings[i]);
+					}
+				}
+				
+				// Column 3
+				if ((page_i >= (2 * MAXIMUM_FILTER_STRINGS_PER_COL)) && (page_i < MAXIMUM_FILTER_STRINGS_PER_PAGE)){
+					if (i == state->selected_filter_string){
+						// This is selected
+						gvramBitmap(420, 70 + ((page_i - 22) * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(420, 70 + ((page_i - 22) * 25), ui_checkbox_empty_bmp);
+					}
+					// Only print the text if we are painting an entirely new window
+					if (redraw == 0){
+						tvramPuts(445, 70 + ((page_i - 22) * 25), ui_progress_font, state->filter_strings[i]);
+					}
+				}	
+			}
+		}
+	}
+	return UI_OK;
+	
+}
+
+int ui_DrawMultiChoiceFilterPopup(state_t *state, int select, int redraw, int toggle){
+	// Draw a multi-choice filter window - more than one filter can be selected at the
+	// same time.
+	
+	int offset;
+	int min_selection;
+	int max_selection;
+	int i;
+	int page_i;
+	int status;
+	char msg[128]; // Title
+	
+	if (redraw == 0){
+		// Title for tech specs multi-choice filter
+		if (state->selected_filter == FILTER_TECH){
+			// Window title
+			sprintf(msg, "Select Tech Specs - Page %d/%d - Space to toggle, Enter to confirm", state->current_filter_page + 1, state->available_filter_pages);
+			tvramPuts(60, 45, ui_progress_font, msg);
+		}
+		// Any other multi-choice filter...
+		// ...
+	}
+	
+	// Move the selection through the on-screen choices
+	if (select == -1){
+		state->selected_filter_string--;
+	}
+	if (select == 1){
+		state->selected_filter_string++;
+	}
+		
+	// We only draw filter string choices from
+	// the currently selected page of filter strings,
+	// which is held in the state->current_filter_page variable.
+	offset = state->current_filter_page * MAXIMUM_FILTER_STRINGS_PER_PAGE;
+	min_selection = offset;
+	
+	// Are there more slots on this page than there are total strings?
+	if (min_selection + MAXIMUM_FILTER_STRINGS_PER_PAGE > state->available_filter_strings){
+		// Upper limit is the total number of strings
+		max_selection = state->available_filter_strings;
+	} else {
+		// Upper limit is the offset plus the total strings on this page
+		max_selection = 	offset + MAXIMUM_FILTER_STRINGS_PER_PAGE;
+	}
+	
+	// Dont allow cursor to go below first string on page
+	if (state->selected_filter_string < min_selection){
+		state->selected_filter_string = min_selection;
+	}
+	// Dont allow cursor to go above last string on page
+	if (state->selected_filter_string >= max_selection){
+		state->selected_filter_string = max_selection - 1;
+	}
+	
+	// Loop through and print the list of choices on this page, highlighting the currently
+	// selected choice.
+	for(i=offset; i<MAXIMUM_FILTER_STRINGS; i++){
+		
+		// We may (probably are) be starting part way
+		// into the list of filter strings if we are on page > 1.
+		page_i = i - offset;
+		
+		if ((state->filter_strings[i] != NULL) && (strcmp(state->filter_strings[i], "") != 0)){
+		
+			// Column 1
+			if (page_i < MAXIMUM_FILTER_STRINGS_PER_COL){
+				// Show the selection cursor
+				if (i == state->selected_filter_string){
+					gvramBitmap(45, 70 + (page_i * 25), ui_checkbox_choose_bmp);
+				} else {
+					if (state->filter_strings_selected[i] == 1){
+						// This is selected, show the checkbox
+						gvramBitmap(45, 70 + (page_i * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(45, 70 + (page_i * 25), ui_checkbox_empty_bmp);
+					}
+				}
+				// Only print the text if we are painting an entirely new window
+				if (redraw == 0){
+					tvramPuts(70, 70 + (page_i * 25), ui_progress_font, state->filter_strings[i]);
+				}
+			}
+			
+			// Column 2
+			if ((page_i >= MAXIMUM_FILTER_STRINGS_PER_COL) && (page_i < (2 * MAXIMUM_FILTER_STRINGS_PER_COL))){
+				// Show the selection cursor
+				if (i == state->selected_filter_string){
+					gvramBitmap(230, 70 + ((page_i - 11) * 25), ui_checkbox_choose_bmp);
+				} else {
+					if (state->filter_strings_selected[i] == 1){
+						// This is selected
+						gvramBitmap(230, 70 + ((page_i - 11) * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(230, 70 + ((page_i - 11) * 25), ui_checkbox_empty_bmp);
+					}
+				}
+				// Only print the text if we are painting an entirely new window
+				if (redraw == 0){
+					tvramPuts(255, 70 + ((page_i - 11) * 25), ui_progress_font, state->filter_strings[i]);
+				}
+			}
+			
+			// Column 3
+			if ((page_i >= (2 * MAXIMUM_FILTER_STRINGS_PER_COL)) && (page_i < MAXIMUM_FILTER_STRINGS_PER_PAGE)){
+				// Show the selection cursor
+				if (i == state->selected_filter_string){
+					gvramBitmap(420, 70 + ((page_i - 22) * 25), ui_checkbox_choose_bmp);
+				} else {
+					if (state->filter_strings_selected[i] == 1){
+						// This is selected
+						gvramBitmap(420, 70 + ((page_i - 22) * 25), ui_checkbox_bmp);
+					} else {
+						// This is not selected
+						gvramBitmap(420, 70 + ((page_i - 22) * 25), ui_checkbox_empty_bmp);
+					}
+				}
+				// Only print the text if we are painting an entirely new window
+				if (redraw == 0){
+					tvramPuts(445, 70 + ((page_i - 22) * 25), ui_progress_font, state->filter_strings[i]);
+				}
+			}	
+		}
+	}
+	
+	return UI_OK;
+}
+
+int ui_DrawHelpPopup(){
+	// Display the full-screen help text	
+	
+	// Draw main box
+	gvramBoxFill(30, 20, GFX_COLS - 40, GFX_ROWS - 20, PALETTE_UI_BLACK);
+	// Draw main box outline
+	gvramBox(30, 20, GFX_COLS - 40, GFX_ROWS - 20, PALETTE_UI_LGREY);
+	
+	tvramPuts(240, 25, ui_progress_font, "x68kLauncher - Help");
+	
+	// Key help
+	tvramPuts(40, 45, ui_progress_font, "Key controls:");
+	tvramPuts(40, 65, ui_progress_font, "- [F]      Bring up the game search/filter window");
+	tvramPuts(40, 85, ui_progress_font, "- [H]      Show this help text window");
+	tvramPuts(40, 105, ui_progress_font, "- [Q]      Quit the application");
+	tvramPuts(40, 125, ui_progress_font, "- [Space]  Select a filter in a multi-select filter window");
+	tvramPuts(40, 145, ui_progress_font, "- [Enter]  Confirm a filter choice or launch selected gameq");
+	tvramPuts(40, 165, ui_progress_font, "- [Esc]    Close the current window or Cancel a selection");
+	
+	// Filter help
+	tvramPuts(40, 200, ui_progress_font, "Search/Filter:");
+	tvramPuts(40, 220, ui_progress_font, "You can search your list of games by [Genre], [Series], [Company] or");
+	tvramPuts(40, 240, ui_progress_font, "by selecting one or more [Tech Specs] such as specific sound or audio");
+	tvramPuts(40, 260, ui_progress_font, "device. Your games must have metadata [launch.dat] for this to work.");
+	
+	// Launching help
+	tvramPuts(40, 295, ui_progress_font, "Game Browser:");
+	tvramPuts(40, 315, ui_progress_font, "[Up] & [Down] scrolls through the list of games on a page. [PageUp]");
+	tvramPuts(40, 335, ui_progress_font, "& [PageDown] jumps an entire page at a time. [Enter] launches the");
+	tvramPuts(40, 355, ui_progress_font, "currently selected game. [Left] & [Right] scrolls through artwork.");
+	
+	return UI_OK;
+}
+
+int	ui_DrawLaunchPopup(state_t *state, gamedata_t *gamedata, launchdat_t *launchdat, int toggle){
+	// Draw the popup window that lets us select from the main or alternate start file
+	// in order to launch a game
+	
+	int status;	
+	
+	// Draw drop-shadow
+	//gfx_BoxFillTranslucent(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 10, ui_launch_popup_xpos + 10 + ui_launch_popup_width, ui_launch_popup_ypos + 10 + ui_launch_popup_height, PALETTE_UI_DGREY);
+	
+	// Draw main box
+	gvramBoxFill(ui_launch_popup_xpos, ui_launch_popup_ypos, ui_launch_popup_xpos + ui_launch_popup_width, ui_launch_popup_ypos + ui_launch_popup_height, PALETTE_UI_BLACK);
+	
+	// Draw main box outline
+	gvramBox(ui_launch_popup_xpos, ui_launch_popup_ypos, ui_launch_popup_xpos + ui_launch_popup_width, ui_launch_popup_ypos + ui_launch_popup_height, PALETTE_UI_LGREY);
+	
+	tvramPuts(ui_launch_popup_xpos + 50, ui_launch_popup_ypos + 10, ui_progress_font, "Select which file to run:");
+	
+	// Start file text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 35, ui_progress_font, launchdat->start);
+	
+	// Alt start file text
+	tvramPuts(ui_launch_popup_xpos + 35, ui_launch_popup_ypos + 65, ui_progress_font, launchdat->alt_start);
+	
+	if (toggle == 1){
+		state->selected_start = !state->selected_start;	
+	}
+	
+	if (state->selected_start == 0){
+		// Checkbox for start
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_empty_bmp);		
+	} else {
+		// Checkbox for alt_start
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 35, ui_checkbox_empty_bmp);
+		gvramBitmap(ui_launch_popup_xpos + 10, ui_launch_popup_ypos + 65, ui_checkbox_bmp);
+	}
+	
+	return UI_OK;
 }
 
 int ui_DrawInfoBox(){
@@ -157,10 +703,6 @@ int ui_DrawStatusBar(){
 		Draw a small status bar at the bottom of the screen where various 
 		one-liner messages can be printed.
 	*/
-	int 	dark, black;
-	
-	dark = rgb888_2grb(80, 80, 80, 0);
-	black = rgb888_2grb(0, 0, 0, 0);
 	
 	// 1px border around the main box
 	
@@ -169,7 +711,7 @@ int ui_DrawStatusBar(){
 		ui_status_bar_ypos, 
 		ui_status_bar_xpos + ui_status_bar_width, 
 		ui_status_bar_ypos + ui_status_bar_height, 
-		dark
+		PALETTE_UI_MGREY
 	);	
 	
 	// Inner box, where text goes
@@ -179,7 +721,7 @@ int ui_DrawStatusBar(){
 		ui_status_bar_ypos  + 1,
 		ui_status_bar_xpos + ui_status_bar_width - 1,
 		ui_status_bar_ypos + ui_status_bar_height - 1,
-		black
+		PALETTE_UI_BLACK
 	);
 	
 	// Progress bar drawn okay
@@ -225,10 +767,6 @@ int ui_DrawSplashProgress(int redraw, int progress_width){
 	*/
 	
 	int 	status;
-	int 	white, lightgrey, blue;
-	
-	lightgrey = rgb888_2grb(210, 210, 210, 1);
-	blue = rgb888_2grb(70, 123, 212, 1);
 	
 	// Redraw entire graphic
 	if (redraw){
@@ -237,7 +775,7 @@ int ui_DrawSplashProgress(int redraw, int progress_width){
 			splash_progress_y_pos, 
 			splash_progress_x_pos + splash_progress_width, 
 			splash_progress_y_pos + splash_progress_height, 
-			lightgrey
+			PALETTE_UI_LGREY
 		);	
 		if (status != 0){
 			return UI_ERR_FUNCTION_CALL;
@@ -251,7 +789,7 @@ int ui_DrawSplashProgress(int redraw, int progress_width){
 		(splash_progress_y_pos + 2),
 		(splash_progress_x_pos + 2 + abs(progress_width)),
 		(splash_progress_y_pos + (splash_progress_height - 2)),
-		blue
+		PALETTE_UI_BLUE
 	);
 	if (status != 0){
 		return UI_ERR_FUNCTION_CALL;
@@ -301,155 +839,242 @@ int ui_LoadAssets(){
 	ui_assets_status = UI_ASSETS_MISSING;
 	
 	// Checkbox
+	ui_ProgressMessage("Loading checkbox icon...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_check_box);
+	}
 	ui_asset_reader = fopen(ui_check_box, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load checkbox icon file");
 		return UI_ERR_FILE;	
 	}
 	ui_checkbox_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_checkbox_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_checkbox_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for checkbox icon.\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for checkbox icon");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Checkbox - empty
+	ui_ProgressMessage("Loading checkbox (empty) icon...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_check_box_unchecked);
+	}
 	ui_asset_reader = fopen(ui_check_box_unchecked, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load checkbox (empty) icon file");
 		return UI_ERR_FILE;	
 	}
 	ui_checkbox_empty_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_checkbox_empty_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_checkbox_empty_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for checkbox (empty) icon.\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for checkbox (empty) icon");
+		return UI_ERR_BMP;
+	}
+	fclose(ui_asset_reader);
+	
+	// Checkbox choose icon
+	ui_ProgressMessage("Loading checkbox (select) icon...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_check_box_choose);
+	}
+	ui_asset_reader = fopen(ui_check_box_choose, "rb");
+	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load checkbox (select) icon file");
+		return UI_ERR_FILE;	
+	}
+	ui_checkbox_choose_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
+	ui_checkbox_choose_bmp->pixels = NULL;
+	status = bmp_ReadImage(ui_asset_reader, ui_checkbox_choose_bmp, 1, 1);
+	if (status != 0){
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for checkbox (select) icon.\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for checkbox (select) icon");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Textbox fragments
+	ui_ProgressMessage("Loading textbox (left border)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_textbox_left);
+	}
 	ui_asset_reader = fopen(ui_textbox_left, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load textbox (left border) file");
 		return UI_ERR_FILE;	
 	}
 	ui_textbox_left_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_textbox_left_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_textbox_left_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for textbox (left border).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for textbox (left border)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Textbox fragments
+	ui_ProgressMessage("Loading textbox (mid section)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_textbox_mid);
+	}
 	ui_asset_reader = fopen(ui_textbox_mid, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load textbox (mid section) file");
 		return UI_ERR_FILE;	
 	}
 	ui_textbox_mid_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_textbox_mid_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_textbox_mid_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for textbox (mid section).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for textbox (mid section)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Textbox fragments
+	ui_ProgressMessage("Loading textbox (right border)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_textbox_right);
+	}
 	ui_asset_reader = fopen(ui_textbox_right, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load textbox (right border) file");
 		return UI_ERR_FILE;	
 	}
 	ui_textbox_right_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_textbox_right_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_textbox_right_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for textbox (left border).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for textbox (left border)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
+	
 	// Header
+	ui_ProgressMessage("Loading borders (header)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_header);
+	}
 	ui_asset_reader = fopen(ui_header, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load borders (header) file");
 		return UI_ERR_FILE;	
 	}
 	ui_header_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_header_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_header_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for border (header).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for border (header)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Left border
+	ui_ProgressMessage("Loading borders (left)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_border_left);
+	}
 	ui_asset_reader = fopen(ui_border_left, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load borders (left) file");
 		return UI_ERR_FILE;	
 	}
 	ui_border_left_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_border_left_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_border_left_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for border (left).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for border (left)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Middle divider
+	ui_ProgressMessage("Loading borders (middle)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_border_central);
+	}
 	ui_asset_reader = fopen(ui_border_central, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load borders (middle) file");
 		return UI_ERR_FILE;	
 	}
 	ui_border_divider_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_border_divider_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_border_divider_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for border (middle).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for border (middle)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 	
 	// Right Border
+	ui_ProgressMessage("Loading borders (right)...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_border_right);
+	}
 	ui_asset_reader = fopen(ui_border_right, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load borders (right) file");
 		return UI_ERR_FILE;	
 	}
 	ui_border_right_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_border_right_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_border_right_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for border (right).\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for border (right)");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
-
+	
 	// Under artwork
+	ui_ProgressMessage("Loading artwork bitmap...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_under_artwork);
+	}
 	ui_asset_reader = fopen(ui_under_artwork, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load artwork bitmap file");
 		return UI_ERR_FILE;	
 	}
 	ui_under_artwork_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_under_artwork_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_under_artwork_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for artwork bitmap.\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for artwork bitmap");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
 
 	// Under browser
+	ui_ProgressMessage("Loading browser bitmap...");
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadAssets() Loading %s\n", __FILE__, __LINE__, ui_under_browser);
+	}
 	ui_asset_reader = fopen(ui_under_browser, "rb");
 	if (ui_asset_reader == NULL){
+		ui_ProgressMessage("ERROR! Unable to load browser bitmap file");
 		return UI_ERR_FILE;	
 	}
 	ui_under_browser_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_under_browser_bmp->pixels = NULL;
 	status = bmp_ReadImage(ui_asset_reader, ui_under_browser_bmp, 1, 1);
 	if (status != 0){
-		fclose(ui_asset_reader);
+		printf("%s.%d\t ui_LoadAssets() Unable to allocate memory for artwork bitmap.\n", __FILE__, __LINE__);
+		ui_ProgressMessage("ERROR! Unable to allocate memory for artwork bitmap");
 		return UI_ERR_BMP;
 	}
 	fclose(ui_asset_reader);
@@ -473,6 +1098,9 @@ int ui_LoadFonts(){
 	// =========================
 	// progress bar font
 	// =========================
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadFonts() Loading %s\n", __FILE__, __LINE__, ui_progress_font_name);
+	}
 	ui_asset_reader = fopen(ui_progress_font_name, "rb");
 	if (ui_asset_reader == NULL){
 		if (UI_VERBOSE){
@@ -481,6 +1109,9 @@ int ui_LoadFonts(){
 		return UI_ERR_FILE;	
 	}
 	
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadFonts() Processing font data for %s\n", __FILE__, __LINE__, ui_progress_font_name);
+	}
 	ui_progress_font = (fontdata_t *) malloc(sizeof(fontdata_t));
 	ui_font_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_font_bmp->pixels = NULL;
@@ -501,6 +1132,9 @@ int ui_LoadFonts(){
 	// =========================
 	// status bar font
 	// =========================
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadFonts() Loading %s\n", __FILE__, __LINE__, ui_progress_font_name);
+	}
 	ui_asset_reader = fopen(ui_status_font_name, "rb");
 	if (ui_asset_reader == NULL){
 		if (UI_VERBOSE){
@@ -509,6 +1143,9 @@ int ui_LoadFonts(){
 		return UI_ERR_FILE;	
 	}
 	
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadFonts() Processing font data for %s\n", __FILE__, __LINE__, ui_progress_font_name);
+	}
 	ui_status_font = (fontdata_t *) malloc(sizeof(fontdata_t));
 	ui_font_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
 	ui_font_bmp->pixels = NULL;
@@ -527,6 +1164,10 @@ int ui_LoadFonts(){
 	
 	// Set fonts loaded status
 	ui_fonts_status = UI_ASSETS_LOADED;
+	
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_LoadFonts() All fonts loaded\n", __FILE__, __LINE__);
+	}
 	
 	bmp_Destroy(ui_font_bmp);
 	return UI_OK;
@@ -736,7 +1377,7 @@ int ui_UpdateBrowserPaneStatus(state_t *state){
 	// Draw browser pane status message in status panel
 	char	msg[64];		// Message buffer for the status bar
 	
-	sprintf(msg, "Line %02d/%02d      Page %02d/%02d", state->selected_line, ui_browser_max_lines, state->selected_page, state->total_pages);
+	sprintf(msg, "Line %02d/%02d     Page %02d/%02d", state->selected_line, ui_browser_max_lines, state->selected_page, state->total_pages);
 	tvramPuts(ui_browser_footer_font_xpos, ui_browser_footer_font_ypos, ui_status_font, msg);
 	
 	return UI_OK;

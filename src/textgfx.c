@@ -477,3 +477,17 @@ int tvramPuts(int x, int y, fontdata_t *fontdata, char *c){
 	}
 	
 }
+
+void tvramSetPal(unsigned char palette, uint16_t grbi){
+	// Set a palette entry 
+	
+	uint16_t *pal_table;
+	
+	if (palette < 16){
+	
+		// Jump to palette entry
+		pal_table = (uint16_t*) TVRAM_PAL_START + palette;
+		// Set new value
+		*pal_table = grbi;
+	}
+}

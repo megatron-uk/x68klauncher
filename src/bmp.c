@@ -355,9 +355,9 @@ int bmp_ReadFont(FILE *bmp_image, bmpdata_t *bmpdata, fontdata_t *fontdata, uint
 							b = bmpdata->pixels[row_bytepos];
 							//printf("row %2d bytepos %3d pattern %s\n", heightpos, row_bytepos, byte2bin(b, NULL));
 							fontdata->symbol[pos][heightpos][0] = b;
-							fontdata->symbol[pos][heightpos][1] = b;
-							fontdata->symbol[pos][heightpos][2] = b;
-							fontdata->symbol[pos][heightpos][3] = b;
+							fontdata->symbol[pos][heightpos][1] = 0;
+							fontdata->symbol[pos][heightpos][2] = 0;
+							fontdata->symbol[pos][heightpos][3] = 0;
 						}
 						// Jump to next symbol in row
 						bytepos += 1;

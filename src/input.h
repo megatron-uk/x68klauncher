@@ -19,21 +19,25 @@
 #define input_group_left_right_up_down	0x07
 #define input_group_select_enter		0x09
 #define input_group_select_space		0x06
-#define input_group_cancel			0x00
+#define input_group_cancel				0x00
 #define input_group_switch				0x02
 
 // Input codes as returned to main()
-#define input_none					0x00
+#define input_none						0x00
 #define input_select					0x01
-#define input_cancel					0x02
-#define input_switch					0x03
-#define input_up						0x04
-#define input_down					0x05
-#define input_left						0x06
-#define input_right					0x07
-#define input_scroll_up				0x08
-#define input_scroll_down				0x09
-#define input_quit						0xFF
+#define input_toggle					0x02
+#define input_cancel					0x03
+#define input_switch					0x04
+#define input_up						0x05
+#define input_down						0x06
+#define input_left						0x07
+#define input_right						0x08
+#define input_scroll_up					0x09
+#define input_scroll_down				0x0A
+#define input_quit						0x0B
+#define input_filter					0x0C
+#define input_help						0x0D
+
 
 // Function prototypes
 int	input_get();

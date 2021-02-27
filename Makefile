@@ -37,15 +37,9 @@ gfx: $(GFXEXE)
 text: $(TEXTEXE)
 
 # The main application
-OBJFILES = build/exnfiles.o build/exfiles.o build/nfiles.o build/files.o \
+OBJFILES = build/exnfiles.o build/exfiles.o build/nfiles.o build/files.o build/filter.o \
 	build/utils.o build/fstools.o build/data.o build/ini.o build/gfx.o \
-	build/ui.o build/bmp.o build/main.o build/textgfx.o build/input.o
-
-# GFX demo test application
-GFXOBJFILES = build/gfxdemo.o build/utils.o build/gfxtest.o build/gfx.o build/bmp.o
-
-# Text GFX demo test application
-TEXTOBJFILES = build/texttest.o build/textgfx.o build/bmp.o build/utils.o build/gfx.o
+	build/ui.o build/bmp.o build/main.o build/textgfx.o build/timers.o build/input.o
 
 $(EXE):  $(OBJFILES)
 	@echo ""
@@ -60,35 +54,6 @@ $(EXE):  $(OBJFILES)
 	@echo ""
 	@echo Copying application binary to X68000 shared folder ....
 	cp -v bin/$(EXE) $(DEST) 
-
-$(GFXEXE):  $(GFXOBJFILES)
-	@echo ""
-	@echo "========================================"
-	@echo " -= $(GFXEXE) =-"
-	@echo ""
-	@echo Linking ....
-	$(CC) $(LDFLAGS) $(GFXOBJFILES) $(GFXLIBS) -o bin/$(GFXTARGET)
-	@echo ""
-	@echo Dumping executable object ....
-	$(OBJCOPY) $(OCFLAGS) bin/$(GFXTARGET) bin/$(GFXEXE)
-	@echo ""
-	@echo Copying GFX test binary to X68000 shared folder ....
-	cp -v bin/$(GFXEXE) $(DEST) 
-	
-$(TEXTEXE):  $(TEXTOBJFILES)
-	@echo ""
-	@echo "========================================"
-	@echo " -= $(TEXTEXE) =-"
-	@echo ""
-	@echo Linking ....
-	$(CC) $(LDFLAGS) $(TEXTOBJFILES) $(TEXTLIBS) -o bin/$(TEXTTARGET)
-	@echo ""
-	@echo Dumping executable object ....
-	$(OBJCOPY) $(OCFLAGS) bin/$(TEXTTARGET) bin/$(TEXTEXE)
-	@echo ""
-	@echo Copying Text GFX test binary to X68000 shared folder ....
-	cp -v bin/$(TEXTEXE) $(DEST) 
-	
 	
 ################################
 #
@@ -117,18 +82,15 @@ build/bmp.o: src/bmp.c
 
 build/data.o: src/data.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/data.o
+
+build/filter.o: src/filter.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/filter.o
 	
 build/fstools.o: src/fstools.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/fstools.o
 	
 build/gfx.o: src/gfx.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/gfx.o
-
-build/gfxdemo.o: src/gfxdemo.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/gfxdemo.o
-	
-build/gfxtest.o: src/gfxtest.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/gfxtest.o
 
 build/ini.o: src/ini.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/ini.o
@@ -142,8 +104,8 @@ build/main.o: src/main.c
 build/textgfx.o: src/textgfx.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/textgfx.o
 
-build/texttest.o: src/texttest.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/texttest.o
+build/timers.o: src/timers.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/timers.o	
 	
 build/ui.o: src/ui.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o build/ui.o	

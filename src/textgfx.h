@@ -27,6 +27,8 @@
 #define TXT_COLS		1024	// Number of pixels in a column
 #define TXT_ROW_SIZE	64		// Number of 16bit words in a row (1024 TXT_ROWS / 16 bits in a word)
 
+#define TVRAM_PAL_START	0xE82200
+
 #define TVRAM_0_START	0xE00000	// Start of text vram bitplane 0
 #define TVRAM_0_END		0xE1FFFF	// End of text vram bitplan 0
 #define TVRAM_1_START	0xE20000	// Start of text vram bitplane 1
@@ -60,3 +62,4 @@ int 		tvramGetXYaddr(int x, int y);
 int 		tvramPutc(int x, int y, fontdata_t *fontdata, char *c);
 int 		tvramPuts(int x, int y, fontdata_t *fontdata, char *c);
 int		tvramPutPixels();
+void		tvramSetPal(unsigned char palette, uint16_t grbi);

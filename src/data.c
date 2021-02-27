@@ -21,9 +21,15 @@
 #include <dos.h>
 
 #include "ini.h"
+#ifndef __HAS_DATA
 #include "data.h"
+#define __HAS_DATA
+#endif
 #include "fstools.h"
+#ifndef __HAS_MAIN
 #include "main.h"
+#define __HAS_MAIN
+#endif
 
 gamedata_t * getGameid(int gameid, gamedata_t *gamedata){
 	// Find a given gameid from the list	
@@ -46,16 +52,6 @@ gamedata_t * getLastGamedata(gamedata_t *gamedata){
 	return gamedata;
 }
 
-
-imagefile_t * getLastImage(imagefile_t *imagefile){
-	/* Given a imagefile item, find the last entry of the list */
-	
-	while (imagefile->next != NULL){
-		imagefile = imagefile->next;
-	}
-	return imagefile;	
-}
-
 gamedir_t * getLastGameDir(gamedir_t *gamedir){
 	/* Given a gamedir search path item, find the last entry of the list */
 	
@@ -65,15 +61,15 @@ gamedir_t * getLastGameDir(gamedir_t *gamedir){
 	return gamedir;
 }
 
-int removeGamedata(gamedata_t *gamedata, int verbose){
+int removeGamedata(gamedata_t *gamedata){
 	/* Remove all nodes of a given imagefile list */
 	
 	gamedata_t * current = gamedata;
 	gamedata_t * next = NULL;
 	
 	if (current->next == NULL){
-		if (verbose){
-			printf("%s.%d\t Freeing gamedata single object\n", __FILE__, __LINE__);	
+		if (DATA_VERBOSE){
+			printf("%s.%d\t removeGamedata() Freeing gamedata single object\n", __FILE__, __LINE__);	
 		}
 		free(current);
 		gamedata = NULL;
@@ -85,8 +81,8 @@ int removeGamedata(gamedata_t *gamedata, int verbose){
 			/* There's another element, so free() this one and
 			    then move on to the next */
 			next = current->next;
-			if (verbose){
-				printf("%s.%d\t Freeing gamedata list object [%s]\n", __FILE__, __LINE__, current->next->name);	
+			if (DATA_VERBOSE){
+				printf("%s.%d\t removeGamedata() Freeing gamedata list object [%s]\n", __FILE__, __LINE__, current->next->name);	
 			}
 			free(current);
 			current = next;
@@ -100,45 +96,7 @@ int removeGamedata(gamedata_t *gamedata, int verbose){
 	return 0;
 }
 
-int removeImagefile(imagefile_t *imagefile){
-	/* Remove all nodes of a given imagefile list */
-	
-	imagefile_t * current = imagefile;
-	imagefile_t * next = NULL;
-	
-	if (current != NULL){
-	
-		if (current->next == NULL){
-			//if (verbose){
-			//	printf("%s.%d\t Freeing imagefile single object\n", __FILE__, __LINE__);	
-			//}
-			free(current);
-			imagefile = NULL;
-			return 0;
-		}
-		
-		while(current != NULL){
-			if (current->next != NULL){
-				/* There's another element, so free() this one and
-					then move on to the next */
-				next = current->next;
-				//if (verbose){
-				//	printf("%s.%d\t Freeing imagefile list object [%s]\n", __FILE__, __LINE__, current->next->filename);	
-				//}
-				free(current);
-				current = next;
-			} else {
-				/* There are no more elements linked */
-				free(current);
-				current = NULL;
-				return 0;
-			}
-		}
-	}
-	return 0;
-}
-
-int sortGamedata(gamedata_t *gamedata, int verbose){
+int sortGamedata(gamedata_t *gamedata){
 	// Sort the list of game data objects by name
 	// This is bubble sort, so it's reasonably slow, but 
 	// simple to implement.
@@ -210,19 +168,44 @@ static int launchdatHandler(void* user, const char* section, const char* name, c
 		
 	#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
 	if (MATCH("default", "name")){
-		strcpy(launchdat->realname, value);
+		strncpy(launchdat->realname, value, MAX_NAME_SIZE);
+		
 	} else if (MATCH("default", "genre")){
-		strcpy(launchdat->genre, value);
+		strncpy(launchdat->genre, value, MAX_STRING_SIZE);
+		
 	} else if (MATCH("default", "developer")){
-		strcpy(launchdat->publisher, value);
+		strncpy(launchdat->developer, value, MAX_STRING_SIZE);
+		
 	} else if (MATCH("default", "publisher")){
-		strcpy(launchdat->publisher, value);
+		strncpy(launchdat->publisher, value, MAX_STRING_SIZE);
+		
 	} else if (MATCH("default", "year")){
 		launchdat->year = atoi(value);
+		
+	} else if (MATCH("default", "midi_mpu")){
+		if (atoi(value) == 1){
+			launchdat->midi = 1;
+		}
 	} else if (MATCH("default", "start")){
-		strcpy(launchdat->start, value);
+		strncpy(launchdat->start, value, MAX_FILENAME_SIZE);
+	
+	} else if (MATCH("default", "alt_start")){
+		strncpy(launchdat->alt_start, value, MAX_FILENAME_SIZE);
+		
 	} else if (MATCH("default", "images")){
-		strcpy(launchdat->images, value);
+		strncpy(launchdat->images, value, IMAGE_BUFFER_SIZE);
+		
+	} else if (MATCH("default", "series")){
+		strncpy(launchdat->series, value, MAX_STRING_SIZE);
+		
+	} else if (MATCH("misc", "cyberstick")){
+		if (atoi(value) == 1){
+			launchdat->hardware->cyberstick = 1;
+		}
+	} else if (MATCH("misc", "fpu")){
+		if (atoi(value) == 1){
+			launchdat->hardware->fpu = 1;
+		}
 	} else {
 		return 0;  /* unknown section/name, error */
 	}
@@ -232,18 +215,18 @@ static int launchdatHandler(void* user, const char* section, const char* name, c
 void launchdataDefaults(launchdat_t *launchdat){
 	/* Set some defaults, in case various lines arent there */
 	
-	//strcpy(launchdat->realname, "Unknown");
 	memset(launchdat->realname, '\0', strlen(launchdat->realname));
-	//strcpy(launchdat->genre, DEFAULT_GENRE);
 	memset(launchdat->genre, '\0', strlen(launchdat->genre));
-	launchdat->year = DEFAULT_YEAR;
-	//strcpy(launchdat->publisher, DEFAULT_PUBLISHER);
 	memset(launchdat->publisher, '\0', strlen(launchdat->publisher));
-	//strcpy(launchdat->developer, DEFAULT_DEVELOPER);
 	memset(launchdat->developer, '\0', strlen(launchdat->developer));
-	//strcpy(launchdat->start, DEFAULT_START);
 	memset(launchdat->start, '\0', strlen(launchdat->start));
+	memset(launchdat->alt_start, '\0', strlen(launchdat->alt_start));
 	memset(launchdat->images, '\0', strlen(launchdat->images));
+	memset(launchdat->series, '\0', strlen(launchdat->series));
+	launchdat->year = DEFAULT_YEAR;
+	launchdat->midi = 0;
+	launchdat->hardware->fpu = 0;
+	launchdat->hardware->cyberstick = 0;
 }
 
 void configDefaults(config_t *config){
@@ -253,12 +236,14 @@ void configDefaults(config_t *config){
 	memset(config->dirs, '\0', strlen(config->dirs));
 	config->save = 0;
 	config->dir = NULL;
+	config->preload_names = 0;
+	config->keyboard_test = 0;
 }
 
 int getLaunchdata(gamedata_t *gamedata, launchdat_t *launchdat){
 	/* load and return a launch.dat from from disk, for a given gamedata object */
 	
-	char filepath[65];
+	char filepath[MAX_PATH_SIZE];
 	
 	if (gamedata->has_dat != 1){
 		return -1;
@@ -270,9 +255,14 @@ int getLaunchdata(gamedata_t *gamedata, launchdat_t *launchdat){
 	
 	launchdataDefaults(launchdat);
 	if (ini_parse(filepath, launchdatHandler, launchdat) < 0) {
-		//printf("%s.%d\t Cannot load %s\n", __FILE__, __LINE__, filepath);
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getLaunchdata() Cannot load %s\n", __FILE__, __LINE__, filepath);
+		}
 		return -1;
 	} else {
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getLaunchdata() Loaded %s\n", __FILE__, __LINE__, filepath);
+		}
 		return 0;
 	}
 }
@@ -288,16 +278,22 @@ static int configHandler(void* user, const char* section, const char* name, cons
 	if (MATCH("default", "verbose")){
 		config->verbose =  atoi(value);
 	} else if (MATCH("default", "gamedirs")){
-		strcpy(config->dirs, value);
+		strncpy(config->dirs, value, MAX_SEARCHDIRS_SIZE);
 	} else if (MATCH("default", "savedirs")){
 		config->save =  atoi(value);
+	} else if (MATCH("default", "preload_names")){
+		config->preload_names =  atoi(value);
+	} else if (MATCH("default", "keyboard_test")){
+		config->keyboard_test =  atoi(value);
+	} else if (MATCH("default", "timers")){
+		config->timers =  atoi(value);
 	} else {
 		return 0;  /* unknown section/name, error */
 	}
 	return 1;
 }
 
-int getIni(config_t *config, int verbose){
+int getIni(config_t *config){
 	/* Load the main ini file for the application */
 	
 	int status;
@@ -306,26 +302,26 @@ int getIni(config_t *config, int verbose){
 	char my_dir[DIR_BUFFER_SIZE];
 	char my_path[DIR_BUFFER_SIZE];
 	
-	if (verbose){
-		printf("%s.%d\t Initialising buffers\n", __FILE__, __LINE__);
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getIni() Initialising buffers\n", __FILE__, __LINE__);
 	}
 	memset(my_dir, '\0', sizeof(my_dir));
 	memset(my_path, '\0', sizeof(my_path));
 	my_drive = _dos_curdrv();
 	my_drive_letter = drvNumToLetter(my_drive);
 	
-	if (verbose){
-		printf("%s.%d\t Current drive: %c\n", __FILE__, __LINE__, my_drive_letter);
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getIni() Current drive: %c\n", __FILE__, __LINE__, my_drive_letter);
 	}
 	status = _dos_curdir((my_drive + 1), my_dir);
 	if (status < 0){
-		if (verbose){
-			printf("%s.%d\t Unable to determine current directory\n", __FILE__, __LINE__);
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getIni() Unable to determine current directory\n", __FILE__, __LINE__);
 		}
 		return -1;
 	} else {
-		if (verbose){
-			printf("%s.%d\t Current directory: %s\n", __FILE__, __LINE__, my_dir);
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getIni() Current directory: %s\n", __FILE__, __LINE__, my_dir);
 		}
 	}
 	my_path[0] = my_drive_letter;
@@ -339,11 +335,11 @@ int getIni(config_t *config, int verbose){
 	
 	configDefaults(config);
 	
-	if (verbose){
-		printf("%s.%d\t Calling parser\n", __FILE__, __LINE__);
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getIni() Calling parser\n", __FILE__, __LINE__);
 	}
 	if (ini_parse(my_path, configHandler, config) < 0) {
-		printf("%s.%d\t Cannot load %s\n", __FILE__, __LINE__, my_path);
+		printf("%s.%d\t getIni() Cannot load %s\n", __FILE__, __LINE__, my_path);
 		return -1;
 	} else {
 		return 0;
@@ -359,27 +355,57 @@ int getImageList(launchdat_t *launchdat, imagefile_t *imagefile){
 	int found;	// Counter for number of found images
 	found = 0;
 	
-	if (launchdat->images != NULL){
-		strcpy(buffer, launchdat->images);
-		p = strtok(buffer, ",");
-		while (p != NULL){
-			found++;
-			imagefile = getLastImage(imagefile);
-			imagefile->next = (imagefile_t *) malloc(sizeof(imagefile_t));
-			strcpy(imagefile->next->filename, p);
-			imagefile->next->next = NULL;
-			if (found >= MAX_IMAGES){
-				return found;
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getImageList() Extracting image filenames for %s\n", __FILE__, __LINE__, launchdat->realname);
+		printf("%s.%d\t getImageList() Images=%s\n", __FILE__, __LINE__, launchdat->images);
+	}
+	
+	// Reset the imagefile list array
+	for(found =0; found < MAX_IMAGES; found++){
+		memset(imagefile->filename[found], '\0', MAX_STRING_SIZE);
+	}
+	found = 0;
+	imagefile->selected = -1;
+	imagefile->first = -1;
+	imagefile->last = -1;
+	
+	if (launchdat != NULL){
+		if (launchdat->images != NULL){
+			strncpy(buffer, launchdat->images, IMAGE_BUFFER_SIZE);
+			p = strtok(buffer, ",; ");
+			while (p != NULL){
+				if (DATA_VERBOSE){
+					printf("%s.%d\t getImageList() Extracted image filename [%s]\n", __FILE__, __LINE__, p);
+				}
+				strncpy(imagefile->filename[found], p,  MAX_FILENAME_SIZE);
+				
+				if (found >= MAX_IMAGES){
+					if (DATA_VERBOSE){
+						printf("%s.%d\t getImageList() Hit limit of %d image filenames\n", __FILE__, __LINE__, MAX_IMAGES);
+					}
+					imagefile->selected = 0;
+					imagefile->first = 0;
+					imagefile->last = found;
+					return found;
+				}
+				imagefile->selected = 0;
+				imagefile->first = 0;
+				imagefile->last = found;
+				found++;
+				p = strtok(NULL, ",; ");
 			}
-			p = strtok(NULL, ",");
+			if (DATA_VERBOSE){
+				printf("%s.%d\t getImageList() Found %d image filenames\n", __FILE__, __LINE__, found);
+			}
+			return found;
 		}
-		return found;
 	} else {
 		return -1;	
 	}	
+	return -1;
 }
 
-int getDirList(config_t *config, gamedir_t *gamedir, int verbose){
+int getDirList(config_t *config, gamedir_t *gamedir){
 	/* build a list of game search directoes as defined in launcher.ini */
 	/* Should only ever be called ONCE at startup!!! */
 	
@@ -393,8 +419,8 @@ int getDirList(config_t *config, gamedir_t *gamedir, int verbose){
 		p = strtok(buffer, ",");
 		while (p != NULL){
 			if (isDir(p)){
-				if (verbose){
-					printf("%s.%d\t Game search path %s\n", __FILE__, __LINE__, p);	
+				if (DATA_VERBOSE){
+					printf("%s.%d\t getDirList() Game search path %s\n", __FILE__, __LINE__, p);	
 				}
 				found++;
 				gamedir = getLastGameDir(gamedir);
@@ -407,24 +433,24 @@ int getDirList(config_t *config, gamedir_t *gamedir, int verbose){
 					config->dir = gamedir;	
 				}
 				if (found >= MAX_DIRS){
-					if (verbose){
-						printf("%s.%d\t Hit game search path limit [%d]\n", __FILE__, __LINE__, MAX_IMAGES);	
+					if (DATA_VERBOSE){
+						printf("%s.%d\t getDirList() Hit game search path limit [%d]\n", __FILE__, __LINE__, MAX_IMAGES);	
 					}
 					break;
 				}
 			} else {
-				if (verbose){
-					printf("%s.%d\t Game search path %s not found, skipping\n", __FILE__, __LINE__, p);
+				if (DATA_VERBOSE){
+					printf("%s.%d\t getDirList() Game search path %s not found, skipping\n", __FILE__, __LINE__, p);
 				}
 			}
 			p = strtok(NULL, ",");
 		}
-		if (verbose){
-			printf("%s.%d\t Found [%d] game search paths\n", __FILE__, __LINE__, found);	
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getDirList() Found [%d] game search paths\n", __FILE__, __LINE__, found);	
 		}
 	} else {
-		if (verbose){
-			printf("%s.%d\t No game search paths found\n", __FILE__, __LINE__);	
+		if (DATA_VERBOSE){
+			printf("%s.%d\t NgetDirList() No game search paths defined\n", __FILE__, __LINE__);	
 		}
 		return -1;	
 	}	

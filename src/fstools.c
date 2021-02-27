@@ -21,7 +21,11 @@
 #include <dos.h>
 
 #include "newlib_fixes.h"
+
+#ifndef __HAS_DATA
 #include "data.h"
+#define __HAS_DATA
+#endif
 #include "fstools.h"
 
 char drvNumToLetter(int drive_number){
@@ -134,7 +138,7 @@ int dirHasData(char *path){
 	return found;
 }
 
-int findDirs(char *path, gamedata_t *gamedata, int startnum){
+int findDirs(char *path, gamedata_t *gamedata, int startnum, config_t *config, launchdat_t *launchdat){
 	/* Open a search path and return a count of any directories found, creating a gamedata object for each one. */
 	
 	// path: Fully qualified path to search, e.g. "A:\Games"
@@ -169,20 +173,20 @@ int findDirs(char *path, gamedata_t *gamedata, int startnum){
 	search_drive = drvLetterFromPath(path);
 	dirFromPath(path, search_dirname);
 	if (FS_VERBOSE){
-		printf("%s.%d\t Search scope [drive:%c] [path:%s]\n", __FILE__, __LINE__, search_drive, search_dirname);
+		printf("%s.%d\t findDirs() Search scope [drive:%c] [path:%s]\n", __FILE__, __LINE__, search_drive, search_dirname);
 	}
 	
 	/* save curdrive */
 	old_drive = _dos_curdrv();
 	if (old_drive < 0){
-		printf("%s.%d\t Unable to save current drive [status:%d]\n", __FILE__, __LINE__, old_drive);
+		printf("%s.%d\t findDirs() Unable to save current drive [status:%d]\n", __FILE__, __LINE__, old_drive);
 		return -1;
 	}
 	
 	/* save curdir */
 	status = _dos_curdir((old_drive + 1), old_dir_buffer);
 	if (status < 0){
-		printf("%s.%d\t Unable to save current directory [status:%d]\n", __FILE__, __LINE__, status);
+		printf("%s.%d\t findDirs() Unable to save current directory [status:%d]\n", __FILE__, __LINE__, status);
 		return -1;
 	}
 	
@@ -190,19 +194,19 @@ int findDirs(char *path, gamedata_t *gamedata, int startnum){
 		/* change to search drive */	
 		status = _dos_chgdrv(drvLetterToNum(search_drive));
 		if (status < old_drive){
-			printf("%s.%d\t Unable to change to search drive [status:%d]\n", __FILE__, __LINE__, status);	
+			printf("%s.%d\t findDirs() Unable to change to search drive [status:%d]\n", __FILE__, __LINE__, status);	
 		} else {
 			
 			/* change to search path root */
 			status = _dos_chdir("\\");
 			if (status != 0){
-				printf("%s.%d\t Unable to change to search path root [status:%d]\n", __FILE__, __LINE__, status);
+				printf("%s.%d\t findDirs() Unable to change to search path root [status:%d]\n", __FILE__, __LINE__, status);
 			} else {
 				
 				/* change to actual search path */
 				status = (_dos_chdir(search_dirname));
 				if (status != 0){
-					printf("%s.%d\t Unable to change to search path [status:%d][path:%s]\n", __FILE__, __LINE__, status, search_dirname);
+					printf("%s.%d\t findDirs() Unable to change to search path [status:%d][path:%s]\n", __FILE__, __LINE__, status, search_dirname);
 				} else {
 					
 					/* list files with attribute 0x10 == directory and wildcard name. */
@@ -215,7 +219,7 @@ int findDirs(char *path, gamedata_t *gamedata, int startnum){
 							/* we don't want .. */
 						} else {
 							if (FS_VERBOSE){
-								printf("%s.%d\t First Name: %s\n", __FILE__, __LINE__, buffer.name);
+								printf("%s.%d\t findDirs() First Name: %s\n", __FILE__, __LINE__, buffer.name);
 							}
 							found++;
 							//dirHasData()
@@ -247,12 +251,32 @@ int findDirs(char *path, gamedata_t *gamedata, int startnum){
 									}
 									found++;
 									gamedata = getLastGamedata(gamedata);
-									gamedata->next = (gamedata_t *) malloc(sizeof(gamedata_t));
+									gamedata->next = (gamedata_t *) calloc(sizeof(gamedata_t), 1);
 									gamedata->next->gameid = startnum;
 									gamedata->next->drive = drvNumToLetter(buffer.driveno);
-									strcpy(gamedata->next->path, search_dirname);
-									strcpy(gamedata->next->name, buffer.name);
+									strncpy(gamedata->next->path, search_dirname, MAX_PATH_SIZE);
+									strncpy(gamedata->next->name, buffer.name, MAX_FILENAME_SIZE);
 									gamedata->next->has_dat = dirHasData(search_dirname);
+									
+									// If pre-loading names from launchdat
+									if (gamedata->next->has_dat == 1){
+										if (config->preload_names == 1){
+											if (FS_VERBOSE){
+												printf("%s.%d\t findDirs() Preloading realname\n", __FILE__, __LINE__);
+											}
+											status = getLaunchdata(gamedata->next, launchdat);
+											if (status == 0){
+												if (FS_VERBOSE){
+													printf("%s.%d\t findDirs() Realname: %s\n", __FILE__, __LINE__, launchdat->realname);
+												}
+												strncpy(gamedata->next->name, launchdat->realname, MAX_NAME_SIZE);
+											} else {
+												if (FS_VERBOSE){
+													printf("%s.%d\t findDirs() Metadata not found!\n", __FILE__, __LINE__);
+												}
+											}
+										}
+									}
 									gamedata->next->next = NULL;
 									startnum++;
 								}
@@ -261,30 +285,95 @@ int findDirs(char *path, gamedata_t *gamedata, int startnum){
 							}
 						}
 					} else {
-						printf("%s.%d\t Search for files returned no entries [status:%d]\n", __FILE__, __LINE__, status);
+						printf("%s.%d\t findDirs() Search for files returned no entries [status:%d]\n", __FILE__, __LINE__, status);
 					}
 				}
 			}
 		}
 	} else {
-		printf("%s.%d\t Not a directory\n", __FILE__, __LINE__);
+		printf("%s.%d\t findDirs() Not a directory\n", __FILE__, __LINE__);
 	}
 	
 	/* reload current drive and directory */
 	status = _dos_chgdrv(old_drive);
 	if (status < old_drive){
-		printf("%s.%d\t Unable to restore drive [status:%d]\n", __FILE__, __LINE__, status);
+		printf("%s.%d\t findDirs() Unable to restore drive [status:%d]\n", __FILE__, __LINE__, status);
 		return -1;	
 	}
 	status = _dos_chdir("\\");
 	if (status != 0){
-		printf("%s.%d\t Unable to restore root [status:%d]\n", __FILE__, __LINE__, status);
+		printf("%s.%d\t findDirs() Unable to restore root [status:%d]\n", __FILE__, __LINE__, status);
 		return -1;
 	}
 	status = _dos_chdir(old_dir_buffer);
 	if (status != 0){
-		printf("%s.%d\t Unable to restore directory [status:%d\n", __FILE__, __LINE__, status);
+		printf("%s.%d\t findDirs() Unable to restore directory [status:%d\n", __FILE__, __LINE__, status);
 		return -1;
 	}
 	return found;
+}
+
+int zeroRunBat(){
+	// Empty contents of the run.bat file
+	FILE *runbat;
+	
+	if (FS_VERBOSE){
+		printf("%s.%d\t Emptying the %s call file\n", __FILE__, __LINE__, RUNBAT);
+	}
+	runbat = fopen(RUNBAT, "w");
+	if (runbat != NULL){
+		fclose(runbat);
+	}
+	return 0;
+}
+
+int writeRunBat(state_t *state, launchdat_t *launchdat){
+	// Write a RUN.BAT file in our application directory to launch the state->selected_start exe
+	// from the launchdat file at application exit.
+	
+	FILE *runbat;
+	
+	runbat = fopen(RUNBAT, "w");
+	if (runbat != NULL){
+		if (FS_VERBOSE){
+			printf("%s.%d\t Opened %s to set game exe\n", __FILE__, __LINE__, RUNBAT);
+		}
+	} else {
+		if (FS_VERBOSE){
+			printf("%s.%d\t Unable to write to %s to call game exe\n", __FILE__, __LINE__, RUNBAT);
+		}
+		return -1;
+	}
+	
+	if (FS_VERBOSE){
+		fprintf(runbat, "REM ID: %d\n", state->selected_game->gameid);
+		fprintf(runbat, "REM Name: %s\n", state->selected_game->name);
+		fprintf(runbat, "REM Drive: %c\n", state->selected_game->drive);
+		fprintf(runbat, "REM Path: %s\n", state->selected_game->path);
+		fprintf(runbat, "REM Start: %s\n", launchdat->start);
+		fprintf(runbat, "REM Alt Start: %s\n", launchdat->alt_start);
+		fputs("\n", runbat);
+	}
+	
+	// Change to game drive
+	fprintf(runbat, "%c: \n", state->selected_game->drive);
+
+	// CD to game directory
+	fprintf(runbat, "cd %s \n", state->selected_game->path);
+	
+	// Call selected start file
+	if (state->selected_start == 0){
+		fprintf(runbat, "%s \n", launchdat->start);
+	} else {
+		fprintf(runbat, "%s \n", launchdat->alt_start);
+	}
+	
+	// Return to original directory
+	//fputs("cd -", runbat);
+	//fputs("\n", runbat);
+	
+	// Close run.bat
+	fclose(runbat);
+	
+	return 0;
 }

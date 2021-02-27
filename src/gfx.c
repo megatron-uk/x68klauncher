@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 #include "gfx.h"
 #include "utils.h"
@@ -30,7 +31,7 @@
 #define __HAS_BMP
 #endif
 
-int gfx_Init(int verbose, int clear){
+int gfx_Init(){
 	// Initialise graphics to a set of configured defaults
 	
 	if (GFX_VERBOSE){
@@ -80,6 +81,10 @@ int gfx_Close(){
 void gfx_Clear(){
 	_iocs_b_curoff();
 	_iocs_g_clr_on();
+}
+
+void gfx_Flip(){
+	
 }
 
 int gvramBitmap(int x, int y, bmpdata_t *bmpdata){
@@ -224,6 +229,7 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	uint8_t 	r,g,b;
 	int		status;
 	int 		start_addr;	// The first pixel
+	int		new_y;
 	
 	if (bmpdata->bpp != 16){
 		return GFX_ERR_UNSUPPORTED_BPP;
@@ -237,16 +243,16 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	if (bmpstate->rows_remaining == bmpdata->height){
 		// This is a new image, or we haven't read a row yet
 		
-		if (bmpstate->pixels != NULL){
-			free(bmpstate->pixels);
-		}
-		bmpstate->pixels = (uint8_t*) calloc(bmpdata->width, bmpdata->bytespp);
+		//if (bmpstate->pixels != NULL){
+		//	free(bmpstate->pixels);
+		//}
+		//bmpstate->pixels = (uint8_t*) calloc(bmpdata->width, bmpdata->bytespp);
 		bmpstate->width_bytes = bmpdata->width * bmpdata->bytespp;
 		
 		// Seek to start of data section in file
 		status = fseek(bmpfile, bmpdata->offset, SEEK_SET);
 		if (status != 0){
-			free(bmpstate->pixels);
+			//free(bmpstate->pixels);
 			bmpstate->width_bytes = 0;
 			bmpstate->rows_remaining = 0;
 			return BMP_ERR_READ;
@@ -256,21 +262,34 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	// Read a row of pixels
 	status = fread(bmpstate->pixels, 1, bmpdata->row_unpadded, bmpfile);
 	if (status < 1){
-		free(bmpstate->pixels);
+		//free(bmpstate->pixels);
 		bmpstate->width_bytes = 0;
 		bmpstate->rows_remaining = 0;
 		return BMP_ERR_READ;	
 	}
+	
 	if (status != bmpdata->row_unpadded){
 		// Seek the number of bytes left in this row
-		status = fseek(bmpfile, (bmpdata->row_padded - status), SEEK_CUR);
+		status = fseek(bmpfile, (bmpdata->row_padded - bmpdata->row_unpadded), SEEK_CUR);
 		if (status != 0){
-			free(bmpstate->pixels);
+			if (BMP_VERBOSE){
+				printf("%s.%d\t gfx_BitmapAsync() Error seeking next row of pixels\n", __FILE__, __LINE__);
+			}
+			//free(bmpstate->pixels);
 			bmpstate->width_bytes = 0;
 			bmpstate->rows_remaining = 0;
 			return BMP_ERR_READ;
 		}
+	} else {
+		// Seek to end of row
+		if (bmpdata->row_padded != bmpdata->row_unpadded){
+			fseek(bmpfile, (bmpdata->row_padded - bmpdata->row_unpadded), SEEK_CUR);
+		}
 	}
+	
+	// Get coordinates
+	new_y = y + bmpstate->rows_remaining;
+	start_addr = gvramGetXYaddr(x, new_y);
 	
 	bmp_ptr = bmpstate->pixels;
 	for(i = 0; i < bmpdata->width; i++){
@@ -292,27 +311,71 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 		bmp_ptr += bmpdata->bytespp;
 	}
 	
-	// Get coordinates
-	start_addr = gvramGetXYaddr(x, y + bmpstate->rows_remaining);
-	
 	// Set starting pixel address
 	gvram = (uint16_t*) start_addr;
 	
 	// Copy to screen
-	//ptr = (uint16_t*) bmpstate->pixels;
 	memcpy(gvram, bmpstate->pixels, bmpstate->width_bytes);
 	
 	bmpstate->rows_remaining--;
 	
 	if (bmpstate->rows_remaining < 1){
 		bmpstate->rows_remaining = 0;
-		//free(bmpstate->pixels);
-		//fclose(bmpfile);
-		//bmpfile = NULL;
 	}
 	
 	return 0;
 	
+}
+
+int gvramBitmapAsyncFull(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t *bmpstate){
+	// Display a bitmap using the async call, in its entirety, using no-more than 1 line
+	// worth of allocated memory
+	
+	int status;
+	
+	if (GFX_VERBOSE){
+		printf("%s.%d\t gvramBitmapAsyncFull() Starting async bitmap loader\n", __FILE__, __LINE__);
+	}
+	
+	// Read image header and palette entries
+	status = bmp_ReadImage(bmpfile, bmpdata, 1, 0);	
+	if (status != 0){
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gvramBitmapAsyncFull() Unable to load bitmap for async display\n", __FILE__, __LINE__);
+		}
+	} else {
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gvramBitmapAsyncFull() Bitmap header and palette loaded\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramBitmapAsyncFull() %dx%d\n", __FILE__, __LINE__, bmpdata->width, bmpdata->height);
+			if (bmpdata->row_unpadded != bmpdata->row_padded){
+				printf("%s.%d\t gvramBitmapAsyncFull() %d / %d row size\n", __FILE__, __LINE__, bmpdata->row_unpadded, bmpdata->row_padded);
+				printf("%s.%d\t gvramBitmapAsyncFull() Need to seek at the end of each row!\n", __FILE__, __LINE__);
+			}
+		}
+		
+		// Set rows remaining
+		bmpstate->rows_remaining = bmpdata->height;
+	
+		// Loop until all rows processed
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gvramBitmapAsyncFull() Starting async display at X:%d Y:%d...\n", __FILE__, __LINE__, x, y);
+			printf("%s.%d\t gvramBitmapAsyncFull() Need to make %d calls...\n", __FILE__, __LINE__, bmpstate->rows_remaining);
+		}
+		while (bmpstate->rows_remaining > 0){
+			status = gvramBitmapAsync(x, y, bmpdata, bmpfile, bmpstate);
+			if (status != 0){
+				if (GFX_VERBOSE){
+					printf("%s.%d\t gvramBitmapAsyncFull() Error loading bitmap asynchronously\n", __FILE__, __LINE__);
+				}
+				return status;	
+			}
+		}
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gvramBitmapAsyncFull() Completed\n", __FILE__, __LINE__);
+		}
+	}
+	
+	return status;
 }
 
 int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
@@ -362,6 +425,10 @@ int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
 		// Move to next pixel in line
 		gvram++;
 	}
+	//memset(gvram, grbi, ((x2 - x1) * 2));
+	//wmemset((wchar_t *) gvram, (wchar_t) grbi, (x2 - x1));
+	//gvram += (x2 - x1);
+	
 	// Jump to next line down and start of left side
 	gvram += (GFX_COLS - x2) + (x1 - 1);
 	
@@ -379,6 +446,9 @@ int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
 		// Move to next pixel in line
 		gvram++;
 	}
+	//memset(gvram, grbi, ((x2 - x1) * 2));
+	//wmemset((wchar_t *) gvram, (wchar_t) grbi, (x2 - x1));
+	//gvram += (x2 - x1);
 	
 	return 0;
 }
@@ -388,7 +458,13 @@ int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){
 	int row, col;		//  x and y position counters
 	int start_addr;	// The first pixel, at x1,y1
 	int temp;		// Holds either x or y, if we need to flip them
+	int size;
 	int step;
+	int stepsize;
+	
+	if (GFX_VERBOSE){
+	   printf("%s.%d\t gfx_BoxFill() Drawing %d,%d-%d,%d\n", __FILE__, __LINE__, x1, y1, x2, y2);
+	}
 	
 	// Flip y, if it is supplied reversed
 	if (y1>y2){
@@ -424,6 +500,9 @@ int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){
 	// Step to next row in vram
 	step = (GFX_COLS - x2) + (x1 - 1);
 	
+	// Number of bytes to write at a time (row size)
+	//size = (x2 - x1);
+	
 	// Starting from the first row (y1)
 	for(row = y1; row <= y2; row++){
 		// Starting from the first column (x1)
@@ -433,6 +512,18 @@ int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){
 		}
 		gvram += step;
 	}
+	
+	// Offset after each memset() call
+	//stepsize = step + size + 1;
+	
+	// Starting from the first row (y1)
+	//for(row = y1; row <= y2; row++){
+	//	
+	//	//memset(gvram, grbi, size * 2);
+	//	wmemset((wchar_t *) gvram, (wchar_t) grbi, size);
+	//	gvram += stepsize;
+	//}
+	
 	return 0;
 }
 
@@ -449,10 +540,18 @@ int gvramGetXYaddr(int x, int y){
 	
 	if (addr>GVRAM_END){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t XY coords beyond GVRAM address range\n", __FILE__, __LINE__);
+			printf("%s.%d\t gfx_GetXYaddr() XY coords beyond GVRAM address range\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
+	
+	if (addr < GVRAM_START){
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gfx_GetXYaddr() XY coords before GVRAM address range\n", __FILE__, __LINE__);
+		}
+		return -1;
+	}
+	
 	return addr;
 }
 
