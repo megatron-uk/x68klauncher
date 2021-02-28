@@ -222,14 +222,14 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	// Load from file, decode and display, line by line
 	// Every time the function is called, another line is read, decoded and displayed
 	
-	int 		i;			// Loop counter
+	int 			i;			// Loop counter
 	uint16_t 	pixel;		// A single pixel
-	uint8_t	*bmp_ptr;	// Access pairs of bytes in pixel bufer
-	uint16_t	*ptr;		// Access 16bit words in pixel buffer
-	uint8_t 	r,g,b;
-	int		status;
-	int 		start_addr;	// The first pixel
-	int		new_y;
+	uint8_t		*bmp_ptr;	// Access pairs of bytes in pixel bufer
+	uint16_t		*ptr;		// Access 16bit words in pixel buffer
+	uint8_t 		r,g,b;		// triplet values for each part of the 16bit pixel
+	int			status;
+	int 			start_addr;	// The first pixel
+	int			new_y;
 	
 	if (bmpdata->bpp != 16){
 		return GFX_ERR_UNSUPPORTED_BPP;
@@ -242,17 +242,11 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	
 	if (bmpstate->rows_remaining == bmpdata->height){
 		// This is a new image, or we haven't read a row yet
-		
-		//if (bmpstate->pixels != NULL){
-		//	free(bmpstate->pixels);
-		//}
-		//bmpstate->pixels = (uint8_t*) calloc(bmpdata->width, bmpdata->bytespp);
 		bmpstate->width_bytes = bmpdata->width * bmpdata->bytespp;
 		
 		// Seek to start of data section in file
 		status = fseek(bmpfile, bmpdata->offset, SEEK_SET);
 		if (status != 0){
-			//free(bmpstate->pixels);
 			bmpstate->width_bytes = 0;
 			bmpstate->rows_remaining = 0;
 			return BMP_ERR_READ;
@@ -272,7 +266,7 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 		// Seek the number of bytes left in this row
 		status = fseek(bmpfile, (bmpdata->row_padded - bmpdata->row_unpadded), SEEK_CUR);
 		if (status != 0){
-			if (BMP_VERBOSE){
+			if (GFX_VERBOSE){
 				printf("%s.%d\t gfx_BitmapAsync() Error seeking next row of pixels\n", __FILE__, __LINE__);
 			}
 			//free(bmpstate->pixels);
@@ -314,7 +308,7 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	// Set starting pixel address
 	gvram = (uint16_t*) start_addr;
 	
-	// Copy to screen
+	// Copy entire line to screen
 	memcpy(gvram, bmpstate->pixels, bmpstate->width_bytes);
 	
 	bmpstate->rows_remaining--;
@@ -323,7 +317,7 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 		bmpstate->rows_remaining = 0;
 	}
 	
-	return 0;
+	return GFX_OK;
 	
 }
 
@@ -450,7 +444,7 @@ int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
 	//wmemset((wchar_t *) gvram, (wchar_t) grbi, (x2 - x1));
 	//gvram += (x2 - x1);
 	
-	return 0;
+	return GFX_OK;
 }
 
 int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){

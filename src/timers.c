@@ -38,12 +38,16 @@ int timers_FireArt(long int last){
 	
 	long int t;
 	
+	return 1;
+	
+	/*
 	t = xclock() - last;
 	
-	if (t > ARTWORK_FIRE){
+	if (t >= ARTWORK_FIRE){
 		return 1;
 	} else {
 		return 0;	
 	}
+	*/
 }
 

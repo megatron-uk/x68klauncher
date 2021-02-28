@@ -57,20 +57,18 @@ int main() {
 	uint16_t black;
 	black = rgb888_2grb(0,0,0,0);
 	
-	int has_screenshot;
-	int has_launchdat;
-	int has_images;
+	unsigned char has_screenshot;
 	int old_gameid;
-	int super;								// 68k supervisor mode state
+	unsigned char  super;					// 68k supervisor mode state
 	int i;									// Loop counter
-	int active_pane;							// Indicator of which UI element is active and consuming input
-	int exit;								// Status flag indicating user wants to quit
-	int user_input, joy_input, key_input;	// User input state - either a keyboard code or joystick direction/button
-	int scrape_dirs;							// NUmber of directories being scraped
-	int scrape_progress_chunk_size;			// Size of progress bar increase per directory being scraped
-	int progress;							// Progress bar percentage
+	unsigned char active_pane;				// Indicator of which UI element is active and consuming input
+	unsigned char exit;						// Status flag indicating user wants to quit
+	unsigned char  user_input, joy_input, key_input;	// User input state - either a keyboard code or joystick direction/button
+	unsigned char scrape_dirs;				// NUmber of directories being scraped
+	unsigned char scrape_progress_chunk_size;	// Size of progress bar increase per directory being scraped
+	unsigned char progress;					// Progress bar percentage
 	int found, found_tmp;					// Number of gamedirs/games found
-	int verbose;								// Controls output of additional logging/text
+	unsigned char  verbose;					// Controls output of additional logging/text
 	int status;								// Generic function return status variable
 	char msg[64];							// Message buffer
 	
@@ -95,9 +93,7 @@ int main() {
 	config_t *config = NULL;					// Configuration data as defined in our INIFILE
 	screenshot_file = NULL;
 	
-	has_screenshot = 0;						// No screenshots unless detected
-	has_launchdat = 0;						// No launchdat metadata unless loaded
-	has_images = 0;							// No images until processed from metadata
+	has_screenshot = 0;
 	old_gameid = -1;							// No previous game was selected
 	active_pane = BROWSER_PANE;				// Set initial focus to browser pane
 	user_input = joy_input = key_input = 0;	// Initial state of all input variables
@@ -106,7 +102,7 @@ int main() {
 	progress = 0;							// Default to 0 progress bar size
 	found = found_tmp = 0;					// Counter of the number of found directories/gamedata items
 	verbose = 1;								// Initial debug/verbose setting; overidden from INIFILE, if set
-	
+	last = 0;
 	super = _dos_super(0);					// Enter supervisor mode, so we can access graphics memory
 	
 	printf("%s starting...\n", MY_NAME);
@@ -129,26 +125,26 @@ int main() {
 	config = (config_t *) malloc(sizeof(config_t));
 	config->dir = NULL;
 	
-	screenshot_bmp = (bmpdata_t *) malloc(sizeof(bmpdata_t));
+	screenshot_bmp = (bmpdata_t *) calloc(sizeof(bmpdata_t), 1);
 	screenshot_bmp->pixels = NULL;
 	
 	// Screenshot state line buffer
-	screenshot_bmp_state = (bmpstate_t *) malloc(sizeof(bmpstate_t));
-	screenshot_bmp_state->pixels = NULL;
+	screenshot_bmp_state = (bmpstate_t *) calloc(sizeof(bmpstate_t), 1);
 	
 	// List of artwork for a game
-	imagefile = (imagefile_t *) malloc(sizeof(imagefile_t));
+	imagefile = (imagefile_t *) calloc(sizeof(imagefile_t), 1);
 	
 	// Launchdat metadata structure
-	launchdat = (launchdat_t *) malloc(sizeof(launchdat_t));
-	filterdat = (launchdat_t *) malloc(sizeof(launchdat_t));
-	launchdat->hardware = (hwdata_t *) malloc(sizeof(hwdata_t));
-	filterdat->hardware = (hwdata_t *) malloc(sizeof(hwdata_t));
+	launchdat = (launchdat_t *) calloc(sizeof(launchdat_t), 1);
+	filterdat = (launchdat_t *) calloc(sizeof(launchdat_t), 1);
+	launchdat->hardware = (hwdata_t *) calloc(sizeof(hwdata_t), 1);
+	filterdat->hardware = (hwdata_t *) calloc(sizeof(hwdata_t), 1);
 	
 	/* ************************************** */
 	/* Create an instance of the UI state data */
 	/* ************************************** */
 	state = (state_t *) malloc(sizeof(state_t));
+	old_gameid = -1;
 	state->selected_max = 0;			// Total amount of items in current filtered selection
 	state->selected_page = 1;			// Default to first page of selected games 
 	state->selected_line = 0;			// Default to first line selected
@@ -456,6 +452,7 @@ int main() {
 	state->selected_gameid = gamedata->gameid;
 	state->has_launchdat = gamedata->has_dat;
 	state->has_images = 0;
+	old_gameid = state->selected_gameid;
 	if (state->has_launchdat){
 		if (config->verbose){
 			printf("%s.%d\t Loading metadata for initial selection id [%d]\n", __FILE__, __LINE__, state->selected_gameid);	
@@ -481,7 +478,7 @@ int main() {
 	gfx_Flip();
 	
 	// Apply no-filtering to list, show all games
-	//status = filter_None(state, gamedata);
+	status = filter_None(state, gamedata);
 	if (config->verbose){
 		printf("%s.%d\t Initial selection state\n", __FILE__, __LINE__);
 		printf("%s.%d\t Info - selected_max: %d\n", __FILE__, __LINE__, state->selected_max);
@@ -594,6 +591,8 @@ int main() {
 	
 	// Update info with current selection
 	ui_ReselectCurrentGame(state);
+	status = ui_UpdateBrowserPane(state, state->selected_game);
+	status = ui_UpdateBrowserPaneStatus(state);
 	status = ui_UpdateInfoPane(state, state->selected_game, launchdat);
 	if (status != UI_OK){
 		printf("ERROR! Unable to update info pane contents!\n");
@@ -619,7 +618,9 @@ int main() {
 	}
 	ui_StatusMessage("Waiting for user input...");
 	while (exit == 0){
+		//_dos_kflushin();
 		user_input = input_get();
+		//
 		
 		// ==================================================
 		//
@@ -648,7 +649,7 @@ int main() {
 					ui_ReselectCurrentGame(state);
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					break;
 				case(input_select):
@@ -694,7 +695,7 @@ int main() {
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
 					gfx_Flip();
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					break;
 				case(input_up):
@@ -750,7 +751,7 @@ int main() {
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
 					gfx_Flip();
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					break;
 				default:
@@ -810,7 +811,7 @@ int main() {
 						ui_UpdateInfoPane(state, gamedata, launchdat);
 						ui_UpdateBrowserPaneStatus(state);
 						gfx_Flip();
-						ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+						//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 						gfx_Flip();
 						user_input = input_get();
 					} else {
@@ -861,7 +862,7 @@ int main() {
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
 					gfx_Flip();
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					break;
 				default:
@@ -993,7 +994,7 @@ int main() {
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
 					gfx_Flip();
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					user_input = input_get();
 					break;
@@ -1014,7 +1015,7 @@ int main() {
 					ui_UpdateInfoPane(state, gamedata, launchdat);
 					ui_UpdateBrowserPaneStatus(state);
 					gfx_Flip();
-					ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+					//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
 					gfx_Flip();
 					break;
 				default:
@@ -1165,6 +1166,7 @@ int main() {
 					timers_Print(start_time, end_time, "Scroll Browser Down", config->timers);
 					break;
 				case(input_scroll_up):
+					old_gameid = state->selected_gameid;
 					// Start timer
 					last = xclock();
 					
@@ -1185,6 +1187,7 @@ int main() {
 					timers_Print(start_time, end_time, "Page Browser Up", config->timers);
 					break;					
 				case(input_scroll_down):
+					old_gameid = state->selected_gameid;
 					// Start timer
 					last = xclock();
 					
@@ -1215,7 +1218,7 @@ int main() {
 						} else {
 							imagefile->selected = imagefile->last;
 						}
-						ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+						has_screenshot = 1;
 						gfx_Flip();
 					}
 					end_time = xclock();
@@ -1224,13 +1227,13 @@ int main() {
 				case(input_right):
 					// Scroll right through artwork - if available
 					start_time = xclock();
-					if (imagefile->last != NULL){
+					if (imagefile->last != -1){
 						if (imagefile->selected < imagefile->last){
 							imagefile->selected += 1;
 						} else {
 							imagefile->selected = imagefile->first;
 						}
-						ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+						has_screenshot = 1;
 						gfx_Flip();
 					}
 					end_time = xclock();
@@ -1248,7 +1251,16 @@ int main() {
 			
 			// Only refresh browser, artwork and info panes if the selected game has changed
 			if ((old_gameid != state->selected_gameid) && (active_pane == BROWSER_PANE)){
-							
+				
+				if (config->verbose){
+					printf("%s.%d\t Repainting browser window, info panel and artwork\n", __FILE__, __LINE__);
+					printf("%s.%d\t Info: old_gameid = %d\n", __FILE__, __LINE__, old_gameid);
+					printf("%s.%d\t Info: selected_gameid = %d\n", __FILE__, __LINE__, state->selected_gameid);
+				}
+				
+				// Update the id of the last selected game to our current one
+				old_gameid = state->selected_gameid;
+				
 				// Only fire the artwork/metadata load routine after a pre-set timeout after
 				// the last user input - we could be fast scrolling through the list and
 				// not want to load this item yet.
@@ -1290,6 +1302,7 @@ int main() {
 						if (config->verbose){
 							printf("%s.%d\t Warning, unable to find gamedata for Game ID %d, reverting to %d\n", __FILE__, __LINE__, state->selected_gameid, old_gameid);
 						}
+						has_screenshot = 0;
 						state->selected_gameid = old_gameid;
 						old_gameid = -1;
 					} else {
@@ -1310,6 +1323,9 @@ int main() {
 							}
 							t2 = xclock();
 							timers_Print(t1, t2, "- Load metadata", config->timers);
+						} else {
+							state->has_launchdat = 0;
+							state->has_images = 0;
 						}
 						
 						// ======================
@@ -1346,6 +1362,9 @@ int main() {
 						// Updating info and browser pane
 						// =======================
 						gamedata = gamedata_head;
+						if (config->verbose){
+							printf("%s.%d\t Updating info pane for new game\n", __FILE__, __LINE__);
+						}
 						t1 = xclock();
 						ui_UpdateInfoPane(state, gamedata, launchdat);
 						
@@ -1353,11 +1372,55 @@ int main() {
 						t2 = xclock();
 						timers_Print(t1, t2, "- Update UI Info pane", config->timers);
 		
-						// Display artwork/first screenshot
-						t1 = xclock();
-						ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
-						t2 = xclock();
-						timers_Print(t1, t2, "- Display artwork", config->timers);
+						// Display artwork/first screenshot - or 'sorry no artwork found'
+						if (state->has_images){
+							//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
+							if (screenshot_file){
+								if (config->verbose){
+									printf("%s.%d\t Closing previously screenshot file\n", __FILE__, __LINE__);
+								}
+								fclose(screenshot_file);
+								screenshot_file = NULL;
+							}
+							screenshot_file = fopen(state->selected_image, "rb");
+							if (screenshot_file == NULL){
+								if (config->verbose){
+									printf("%s.%d\t Error opening new screenshot file\n", __FILE__, __LINE__);
+								}
+								has_screenshot = 0;
+							} 
+							else {
+								// =======================
+								// Load header of screenshot bmp
+								// =======================
+								if (config->verbose){
+									printf("%s.%d\t Screenshot file opened\n", __FILE__, __LINE__);
+								}
+								status = bmp_ReadImage(screenshot_file, screenshot_bmp, 1, 0);
+								if (status != 0){
+									ui_StatusMessage("Error, unable to read image header!");
+									has_screenshot = 0;
+								} else {
+									has_screenshot = 1;	
+									sprintf(msg, "Header read: %d x %d @ %d bpp", screenshot_bmp->width, screenshot_bmp->height, screenshot_bmp->bpp);
+									ui_StatusMessage(msg);
+									screenshot_bmp_state->rows_remaining = screenshot_bmp->height;
+									gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
+									sprintf(msg, "Streaming artwork...");
+									ui_StatusMessage(msg);
+								}
+							}
+							has_screenshot = 1;
+						} else {
+							// No artwork available, blank the artwork window
+							gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
+							
+							// Maybe print a message, no artwork available?
+							// TO DO
+							
+							// Disable the async disable of the image
+							has_screenshot = 0;
+						}
 					}
 					if (config->verbose){
 						printf("%s.%d\t New game successfully loaded\n", __FILE__, __LINE__);
@@ -1366,8 +1429,41 @@ int main() {
 					timers_Print(start_time, end_time, "Redraw New Game", config->timers);
 				}
 				gfx_Flip();
+				last = 0;
 			}
 		}
+		
+		// ===========================================================================
+		//
+		// If the current game has artwork then progressively load it in, one line at
+		// a time so that we can still handle user input and not block the application
+		// responding to the user.
+		//
+		// ===========================================================================
+		
+		if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining > 0)){
+			status = gvramBitmapAsync(ui_artwork_xpos, ui_artwork_ypos, screenshot_bmp, screenshot_file, screenshot_bmp_state);
+			switch(status){
+				case(GFX_ERR_UNSUPPORTED_BPP):
+					ui_StatusMessage("Artwork is an unsupported colour depth.");
+					has_screenshot = 0;
+					break;
+				case(GFX_ERR_MISSING_BMPHEADER):
+					ui_StatusMessage("No image header supplied to async display.");
+					has_screenshot = 0;
+					break;
+				case(BMP_ERR_READ):
+					ui_StatusMessage("Error seeking within image file.");
+					has_screenshot = 0;
+					break;
+				case(GFX_OK):
+					break;
+				default:
+					ui_StatusMessage("Unhandled return code from async display.");
+					has_screenshot = 0;
+					break;
+			}
+		}			
 	}
 	
 	free(config);

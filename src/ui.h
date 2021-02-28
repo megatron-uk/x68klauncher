@@ -58,8 +58,9 @@
 #define ui_check_box_choose		"assets\\dark\\check_box_choos.bmp"
 #define ui_check_box_unchecked	"assets\\dark\\check_box_empty.bmp"
 #define ui_textbox_left			"assets\\dark\\textbox_8x16_left.bmp"
-#define ui_textbox_mid			"assets\\dark\\textbox_8x16_mid.bmp"
+#define ui_textbox_mid			"assets\\dark\\textbox_8x16_midb.bmp"
 #define ui_textbox_right			"assets\\dark\\textbox_8x16_right.bmp"
+#define ui_select				"assets\\dark\\select.bmp"
 
 // Coordinates
 #define ui_header_xpos				0
@@ -92,36 +93,36 @@
 // Location of info pane textbox widgets
 #define ui_info_name_xpos			99
 #define ui_info_name_ypos			398
-#define ui_info_name_width			271
+#define ui_info_name_width			274
 #define ui_info_name_text_xpos		(ui_info_name_xpos / 16)
-#define ui_info_name_text_ypos		400
+#define ui_info_name_text_ypos		402
 
 #define ui_info_year_xpos			438
 #define ui_info_year_ypos			398
 #define ui_info_year_width			64
 #define ui_info_year_text_xpos		(ui_info_year_xpos / 16) + 1
-#define ui_info_year_text_ypos		400
+#define ui_info_year_text_ypos		402
 
 #define ui_info_company_xpos			99
 #define ui_info_company_ypos			430
 #define ui_info_company_width		215
 #define ui_info_company_text_xpos	(ui_info_company_xpos / 16)
-#define ui_info_company_text_ypos	432
+#define ui_info_company_text_ypos	434
 
 #define ui_info_genre_xpos			390
 #define ui_info_genre_ypos			430
 #define ui_info_genre_width			112
 #define ui_info_genre_text_xpos		(ui_info_genre_xpos / 16) + 1
-#define ui_info_genre_text_ypos		432
+#define ui_info_genre_text_ypos		434
 
 #define ui_info_path_xpos			99
 #define ui_info_path_ypos			462
 #define ui_info_path_width			403
 #define ui_info_path_text_xpos		(ui_info_path_xpos / 16)
-#define ui_info_path_text_ypos		464
+#define ui_info_path_text_ypos		466
 
 // launch window popup
-#define ui_launch_popup_xpos			170
+#define ui_launch_popup_xpos			100
 #define ui_launch_popup_ypos			150
 #define ui_launch_popup_width		300
 #define ui_launch_popup_height		100
@@ -157,10 +158,11 @@
 #define ui_browser_panel_y_min		ui_header_height
 #define ui_browser_panel_y_max		384
 #define ui_browser_font_x_pos		1
-#define ui_browser_font_y_pos		16
-#define ui_browser_max_lines			21
+#define ui_browser_font_y_pos		15
+#define ui_browser_max_lines			19
 #define ui_browser_footer_font_xpos	1
 #define ui_browser_footer_font_ypos	374
+#define ui_browser_cursor_xpos 		13
 
 // Return codes
 #define UI_OK					0

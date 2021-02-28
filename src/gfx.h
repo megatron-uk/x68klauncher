@@ -36,6 +36,7 @@
 #define RGB_BLACK		0x0000			// Simple RGB definition for a black 16bit pixel (5551 representation?)
 #define RGB_WHITE		0xFFFF			// Simple RGB definition for a white 16bit pixel (5551 representation?)
 
+#define GFX_OK							0
 #define GFX_ERR_UNSUPPORTED_BPP			-254
 #define GFX_ERR_MISSING_BMPHEADER		-253
 

@@ -15,6 +15,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <dos.h>
 #include <iocs.h>
 #include <stdio.h>
 
@@ -28,6 +29,11 @@ int input_get(){
 	
 	// Direction cursor keys
 	k = _iocs_bitsns(input_group_left_right_up_down);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Cursor Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
 	if (k & 0x08) return input_left;
 	if (k & 0x20) return input_right;
 	if (k & 0x10) return input_up;
@@ -37,23 +43,58 @@ int input_get(){
 	
 	// Tab/switch/quit keys
 	k = _iocs_bitsns(input_group_switch);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Switch Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
 	if (k & 0x01) return input_switch;
 	if (k & 0x02) return input_quit;
 	
 	// Enter keys
 	k = _iocs_bitsns(input_group_select_enter);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Enter Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
 	if (k & 0x40) return input_select;
 	
 	// Space keys (treat as enter/select)
 	k = _iocs_bitsns(input_group_select_space);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Space Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
 	if (k & 0x20) return input_select;
 	
 	// Escape key (treat as cancel)
 	k = _iocs_bitsns(input_group_cancel);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Cancel Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
 	if (k & 0x02) return input_cancel;
+	
+	// (H)elp and (F)ilter keys
+	k = _iocs_bitsns(input_group_misc);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Misc Key code: (0x%x)\n", __FILE__, __LINE__, k);
+		}
+	}
+	if (k & 0x08) return input_help;
+	if (k & 0x02) return input_filter;
 	
 	// Read joystick
 	j = _iocs_joyget(0);
+	if (INPUT_VERBOSE){
+		if (k != 0){
+			printf("%s.%d\t input_get() Joystick code: (0x%x)\n", __FILE__, __LINE__, j);
+		}
+	}
 	if (j & 0xFB) return input_left;
 	if (j & 0xFB) return input_right;
 	if (j & 0xFE) return input_up;

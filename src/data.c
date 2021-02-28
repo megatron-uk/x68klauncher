@@ -368,7 +368,7 @@ int getImageList(launchdat_t *launchdat, imagefile_t *imagefile){
 	imagefile->selected = -1;
 	imagefile->first = -1;
 	imagefile->last = -1;
-	
+
 	if (launchdat != NULL){
 		if (launchdat->images != NULL){
 			strncpy(buffer, launchdat->images, IMAGE_BUFFER_SIZE);
@@ -398,8 +398,15 @@ int getImageList(launchdat_t *launchdat, imagefile_t *imagefile){
 				printf("%s.%d\t getImageList() Found %d image filenames\n", __FILE__, __LINE__, found);
 			}
 			return found;
+		} else {
+			if (DATA_VERBOSE){
+				printf("%s.%d\t getImageList() Metadata has no images\n", __FILE__, __LINE__);
+			}	
 		}
 	} else {
+		if (DATA_VERBOSE){
+			printf("%s.%d\t getImageList() No metadata, so no images\n", __FILE__, __LINE__);
+		}
 		return -1;	
 	}	
 	return -1;
