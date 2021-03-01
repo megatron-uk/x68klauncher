@@ -32,6 +32,8 @@
 // Custom filter strings
 #define FILTER_STRING_CONTROL_CYBERSTICK "Input: Cyberstick"
 #define FILTER_STRING_MISC_FPU	"Misc: FPU"
+#define FILTER_STRING_FLOPPY_2HDBOOT	"Floppy: 2HDBoot"
+#define FILTER_STRING_FLOPPY_2HDSIM	"Floppy: 2HDSim"
 
 // Function prototypes
 int filter_GetGenres(state_t *state, gamedata_t *gamedata, launchdat_t *filterdat);

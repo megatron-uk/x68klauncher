@@ -340,6 +340,10 @@ int filter_GetTechSpecs(state_t *state, gamedata_t *gamedata, launchdat_t *filte
 	next_pos++;
 	strncpy(state->filter_strings[next_pos], FILTER_STRING_MISC_FPU, MAX_STRING_SIZE);
 	next_pos++;
+	strncpy(state->filter_strings[next_pos], FILTER_STRING_FLOPPY_2HDBOOT, MAX_STRING_SIZE);
+	next_pos++;
+	strncpy(state->filter_strings[next_pos], FILTER_STRING_FLOPPY_2HDSIM, MAX_STRING_SIZE);
+	next_pos++;
 	
 	if (FILTER_VERBOSE){
 		printf("%s.%d\t Sorting keywords\n", __FILE__, __LINE__);
@@ -757,6 +761,18 @@ int filter_TechSpecs(state_t *state, gamedata_t *gamedata, launchdat_t *filterda
 								continue_search = 0;
 							}
 						}
+						
+						if (strcmp(state->filter_strings[f], FILTER_STRING_FLOPPY_2HDBOOT) == 0){
+							if (filterdat->hardware->uses_2hdboot != 1){
+								continue_search = 0;
+							}
+						}
+						if (strcmp(state->filter_strings[f], FILTER_STRING_FLOPPY_2HDSIM) == 0){
+							if (filterdat->hardware->uses_2hdsim != 1){
+								continue_search = 0;
+							}
+						}
+						
 					}
 					
 					// The search is a composite AND statement,

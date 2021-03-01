@@ -21,7 +21,7 @@
 #define __HAS_BMP
 #endif
 
-#define GFX_VERBOSE		0				// Turn on/off gfx-specific debug output
+#define GFX_VERBOSE		1				// Turn on/off gfx-specific debug output
 #define GFX_PAGE			0				// Active GVRAM page (only one page in 16bit colour mode)
 #define GFX_CRT_MODE 	12				// 512x512 65535 colour
 #define GFX_ROWS			512				// NUmbe of pixels in a row

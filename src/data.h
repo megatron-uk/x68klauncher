@@ -47,6 +47,8 @@ typedef struct gamedata {
 typedef struct hwdata {
 	unsigned char fpu;			// The game can use an fpu
 	unsigned char cyberstick;	// The game can use the cyber flight stick
+	unsigned char uses_2hdsim;	// Uses 2hdsim to emulate floppy drives
+	unsigned char uses_2hdboot;	// Uses 2hdboot to load floppies into RAM and reboot
 } __attribute__((__packed__)) __attribute__((aligned (2))) hwdata_t;
 
 typedef struct launchdat {

@@ -35,27 +35,27 @@ int gfx_Init(){
 	// Initialise graphics to a set of configured defaults
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Storing previous graphics mode\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Storing previous graphics mode\n", __FILE__, __LINE__);	
 	}
 	crt_last_mode = _iocs_crtmod(-1);
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Setting graphics mode\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Setting graphics mode\n", __FILE__, __LINE__);	
 	}
 	_iocs_crtmod(GFX_CRT_MODE);
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Setting active graphics page\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Setting active graphics page\n", __FILE__, __LINE__);	
 	}
 	_iocs_vpage(GFX_PAGE);
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Disable text cursor\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Disable text cursor\n", __FILE__, __LINE__);	
 	}
 	_iocs_b_curoff();
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Clearing graphics screen\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Clearing graphics screen\n", __FILE__, __LINE__);	
 	}
 	_iocs_g_clr_on();
 	
@@ -66,7 +66,7 @@ int gfx_Close(){
 	// Release supervisor mode
 	
 	if (GFX_VERBOSE){
-		printf("%s.%d\t Exiting gfx mode\n", __FILE__, __LINE__);	
+		printf("%s.%d\t gfx_Init() Exiting gfx mode\n", __FILE__, __LINE__);	
 	}
 	// return previous mode??
 	
@@ -94,14 +94,18 @@ int gvramBitmap(int x, int y, bmpdata_t *bmpdata){
 	//
 	// Bitmaps wider or taller than the screen are UNSUPPORTED
 	
-	int row, col;			//  x and y position counters
+	int row, col;		//  x and y position counters
 	int start_addr;		// The first pixel
 	int width_bytes;		// Number of bytes in one row of the image
-	int skip_cols;			// Skip first or last pixels of a row if the image is partially offscreen
+	int skip_cols;		// Skip first or last pixels of a row if the image is partially offscreen
 	int skip_bytes;
 	int skip_rows;		// Skip this number of rows if the image is patially offscreen
-	int total_rows	;		// Total number of rows to read in clip mode
-	uint16_t *ptr;			// Pointer to current location in pixel buffer - 16bit aligned so we always start at a pixel, and not half a byte of the last one
+	int total_rows;		// Total number of rows to read in clip mode
+	uint16_t *ptr;		// Pointer to current location in pixel buffer - 16bit aligned so we always start at a pixel, and not half a byte of the last one
+	
+	if (GFX_VERBOSE){
+		printf("%s.%d\t gvramBitmap() Copying %dx%d bitmap to x:%d,y:%ds\n", __FILE__, __LINE__, bmpdata->width, bmpdata->height, x, y);
+	}
 	
 	if (x < 0){
 		// Negative values start offscreen at the left
@@ -137,7 +141,7 @@ int gvramBitmap(int x, int y, bmpdata_t *bmpdata){
 		start_addr = gvramGetXYaddr(x, y);
 		if (start_addr < 0){
 			if (GFX_VERBOSE){
-				printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+				printf("%s.%d\t gvramBitmap() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 			}
 			return -1;
 		}
@@ -171,7 +175,7 @@ int gvramBitmap(int x, int y, bmpdata_t *bmpdata){
 		start_addr = gvramGetXYaddr(x, y);
 		if (start_addr < 0){
 			if (GFX_VERBOSE){
-				printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+				printf("%s.%d\t gvramBitmap() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 			}
 			return -1;
 		}
@@ -242,6 +246,15 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	
 	if (bmpstate->rows_remaining == bmpdata->height){
 		// This is a new image, or we haven't read a row yet
+		
+		if (GFX_VERBOSE){
+			printf("%s.%d\t gvramBitmapAsync() Copying %dx%d bitmap to x:%d,y:%ds\n", __FILE__, __LINE__, bmpdata->width, bmpdata->height, x, y);
+			if (bmpdata->row_unpadded != bmpdata->row_padded){
+				printf("%s.%d\t gvramBitmapAsync() %d / %d row size\n", __FILE__, __LINE__, bmpdata->row_unpadded, bmpdata->row_padded);
+				printf("%s.%d\t gvramBitmapAsync() Need to seek at the end of each row!\n", __FILE__, __LINE__);
+			}
+		}
+		
 		bmpstate->width_bytes = bmpdata->width * bmpdata->bytespp;
 		
 		// Seek to start of data section in file
@@ -256,7 +269,6 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	// Read a row of pixels
 	status = fread(bmpstate->pixels, 1, bmpdata->row_unpadded, bmpfile);
 	if (status < 1){
-		//free(bmpstate->pixels);
 		bmpstate->width_bytes = 0;
 		bmpstate->rows_remaining = 0;
 		return BMP_ERR_READ;	
@@ -267,9 +279,8 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 		status = fseek(bmpfile, (bmpdata->row_padded - bmpdata->row_unpadded), SEEK_CUR);
 		if (status != 0){
 			if (GFX_VERBOSE){
-				printf("%s.%d\t gfx_BitmapAsync() Error seeking next row of pixels\n", __FILE__, __LINE__);
+				printf("%s.%d\t gvramBitmapAsync() Error seeking next row of pixels\n", __FILE__, __LINE__);
 			}
-			//free(bmpstate->pixels);
 			bmpstate->width_bytes = 0;
 			bmpstate->rows_remaining = 0;
 			return BMP_ERR_READ;
@@ -379,6 +390,10 @@ int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
 	int temp;		// Holds either x or y, if we need to flip them
 	int step;
 	
+	if (GFX_VERBOSE){
+		printf("%s.%d\t gvramBox() Drawing box at x1:%d,y1:%d - x2:%d,y2:%d\n", __FILE__, __LINE__, x1, y1, x2, y2);
+	}
+	
 	// Flip y, if it is supplied reversed
 	if (y1>y2){
 		temp=y1;
@@ -403,7 +418,7 @@ int gvramBox(int x1, int y1, int x2, int y2, uint16_t grbi){
 	start_addr = gvramGetXYaddr(x1, y1);
 	if (start_addr < 0){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramBox() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -457,7 +472,7 @@ int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){
 	int stepsize;
 	
 	if (GFX_VERBOSE){
-	   printf("%s.%d\t gfx_BoxFill() Drawing %d,%d-%d,%d\n", __FILE__, __LINE__, x1, y1, x2, y2);
+	   printf("%s.%d\t gvramBoxFill() Drawing box at x1:%d,y1:%d - x2:%d,y2:%d\n", __FILE__, __LINE__, x1, y1, x2, y2);
 	}
 	
 	// Flip y, if it is supplied reversed
@@ -484,7 +499,7 @@ int gvramBoxFill(int x1, int y1, int x2, int y2, uint16_t grbi){
 	start_addr = gvramGetXYaddr(x1, y1);
 	if (start_addr < 0){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramBoxFill() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -534,14 +549,14 @@ int gvramGetXYaddr(int x, int y){
 	
 	if (addr>GVRAM_END){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t gfx_GetXYaddr() XY coords beyond GVRAM address range\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramGetXYaddr() XY coords beyond GVRAM address range\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
 	
 	if (addr < GVRAM_START){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t gfx_GetXYaddr() XY coords before GVRAM address range\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramGetXYaddr() XY coords before GVRAM address range\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -556,7 +571,7 @@ int gvramPoint(int x, int y, uint16_t grbi){
 	gvram = (uint16_t*) gvramGetXYaddr(x, y);
 	if (gvram < 0){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramPoint() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -581,7 +596,7 @@ int gvramScreenCopy(int x1, int y1, int x2, int y2, int x3, int y3){
 	n_cols = x2 - x1;
 	if (n_cols < 1){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Horizontal size of source must be >0\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramScreenCopy() Horizontal size of source must be >0\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -589,7 +604,7 @@ int gvramScreenCopy(int x1, int y1, int x2, int y2, int x3, int y3){
 	n_rows = x2 - x1;
 	if (n_rows < 1){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Vertical size of source must be >0\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramScreenCopy() Vertical size of source must be >0\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -598,7 +613,7 @@ int gvramScreenCopy(int x1, int y1, int x2, int y2, int x3, int y3){
 	start_addr = gvramGetXYaddr(x1, y1);
 	if (start_addr < 0){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Unable to set GVRAM start address\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramScreenCopy() Unable to set GVRAM start address\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}
@@ -607,7 +622,7 @@ int gvramScreenCopy(int x1, int y1, int x2, int y2, int x3, int y3){
 	dest_addr = gvramGetXYaddr(x3, y3);
 	if (dest_addr < 0){
 		if (GFX_VERBOSE){
-			printf("%s.%d\t Unable to set GVRAM destination address\n", __FILE__, __LINE__);
+			printf("%s.%d\t gvramScreenCopy() Unable to set GVRAM destination address\n", __FILE__, __LINE__);
 		}
 		return -1;
 	}

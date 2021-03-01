@@ -206,6 +206,14 @@ static int launchdatHandler(void* user, const char* section, const char* name, c
 		if (atoi(value) == 1){
 			launchdat->hardware->fpu = 1;
 		}
+	} else if (MATCH("misc", "2hdboot")){
+		if (atoi(value) == 1){
+			launchdat->hardware->uses_2hdboot = 1;
+		}
+	} else if (MATCH("misc", "2hdsim")){
+		if (atoi(value) == 1){
+			launchdat->hardware->uses_2hdsim = 1;
+		}
 	} else {
 		return 0;  /* unknown section/name, error */
 	}
@@ -227,6 +235,8 @@ void launchdataDefaults(launchdat_t *launchdat){
 	launchdat->midi = 0;
 	launchdat->hardware->fpu = 0;
 	launchdat->hardware->cyberstick = 0;
+	launchdat->hardware->uses_2hdsim = 0;
+	launchdat->hardware->uses_2hdboot = 0;
 }
 
 void configDefaults(config_t *config){
@@ -253,7 +263,14 @@ int getLaunchdata(gamedata_t *gamedata, launchdat_t *launchdat){
 	strcat(filepath, "\\");
 	strcat(filepath, GAMEDAT);
 	
+	
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getLaunchdata() Setting defaults\n", __FILE__, __LINE__);
+	}
 	launchdataDefaults(launchdat);
+	if (DATA_VERBOSE){
+		printf("%s.%d\t getLaunchdata() Attempting load of %s\n", __FILE__, __LINE__, filepath);
+	}
 	if (ini_parse(filepath, launchdatHandler, launchdat) < 0) {
 		if (DATA_VERBOSE){
 			printf("%s.%d\t getLaunchdata() Cannot load %s\n", __FILE__, __LINE__, filepath);

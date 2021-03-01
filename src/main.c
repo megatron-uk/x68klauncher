@@ -57,6 +57,7 @@ int main() {
 	uint16_t black;
 	black = rgb888_2grb(0,0,0,0);
 	
+	unsigned char flip;
 	unsigned char has_screenshot;
 	int old_gameid;
 	unsigned char  super;					// 68k supervisor mode state
@@ -1102,9 +1103,6 @@ int main() {
 					}
 					break;
 				case(input_up):
-					// Start timer
-					last = xclock();
-					
 					// Up current list by one row
 					if (state->selected_line == 0){
 						if (state->selected_page == 1){
@@ -1123,20 +1121,14 @@ int main() {
 						state->page_changed = 0;
 					}
 					// Detect if selected game has changed
-					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					if (state->page_changed == 1){
 						ui_UpdateBrowserPane(state, gamedata);
 						state->page_changed = 0;
 					}
 					ui_UpdateBrowserPaneStatus(state);
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Scroll Browser Up", config->timers);
 					break;
 				case(input_down):
-					// Start timer
-					last = xclock();
-					
 					// Down current list by one row
 					if ((state->selected_line == ui_browser_max_lines - 1) || (state->selected_line == (state->selected_max - 1))){
 						if (state->selected_page == state->total_pages){
@@ -1155,21 +1147,15 @@ int main() {
 						state->page_changed = 0;
 					}
 					// Detect if selected game has changed
-					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					if (state->page_changed == 1){
 						ui_UpdateBrowserPane(state, gamedata);
 						state->page_changed = 0;
 					}
 					ui_UpdateBrowserPaneStatus(state);
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Scroll Browser Down", config->timers);
 					break;
 				case(input_scroll_up):
-					old_gameid = state->selected_gameid;
-					// Start timer
-					last = xclock();
-					
+					old_gameid = state->selected_gameid;					
 					// Scroll list up by one page
 					// Detect if selected game has changed
 					if (state->selected_page == 1){
@@ -1183,14 +1169,9 @@ int main() {
 					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					ui_UpdateBrowserPane(state, gamedata);
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Page Browser Up", config->timers);
 					break;					
 				case(input_scroll_down):
 					old_gameid = state->selected_gameid;
-					// Start timer
-					last = xclock();
-					
 					// Scroll list down by one page
 					// Detect if selected game has changed
 					if (state->selected_page == state->total_pages){
@@ -1205,39 +1186,28 @@ int main() {
 					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					ui_UpdateBrowserPane(state, gamedata);
-					
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Page Browser Down", config->timers);
 					break;
 				case(input_left):
 					// Cycle left through artwork
-					start_time = xclock();
 					if (imagefile->last > -1){
 						if (imagefile->selected > 0){
 							imagefile->selected -= 1;
 						} else {
 							imagefile->selected = imagefile->last;
 						}
-						has_screenshot = 1;
 						gfx_Flip();
 					}
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Artwork scroll Left", config->timers);
 					break;
 				case(input_right):
 					// Scroll right through artwork - if available
-					start_time = xclock();
 					if (imagefile->last != -1){
 						if (imagefile->selected < imagefile->last){
 							imagefile->selected += 1;
 						} else {
 							imagefile->selected = imagefile->first;
 						}
-						has_screenshot = 1;
 						gfx_Flip();
 					}
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Artwork scroll Right", config->timers);
 					break;
 				default:
 					break;
@@ -1261,29 +1231,24 @@ int main() {
 				// Update the id of the last selected game to our current one
 				old_gameid = state->selected_gameid;
 				
+				// Disable all artwork disable until we've 
+				// loaded the metadata file and successfully 
+				// opened the first image file
+				has_screenshot = 0;
+				state->has_images = 0;
+				state->has_launchdat = 0;
+				
 				// Only fire the artwork/metadata load routine after a pre-set timeout after
 				// the last user input - we could be fast scrolling through the list and
 				// not want to load this item yet.
 				
-				ui_UpdateBrowserPaneStatus(state);
-				gfx_Flip();
-				
 				if (timers_FireArt(last)){
-				
-					start_time = xclock();
-					
 					// ======================
 					// Destroy current list of artwork
 					// ======================
 					
 					// Clear artwork window
-					t1 = xclock();
 					gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + 256, ui_artwork_ypos + 256, black);
-					state->has_images = 0;
-					t2 = xclock();
-					timers_Print(t1, t2, "- Clear artwork window", config->timers);
-					
-					state->has_launchdat = 0;
 					
 					// ======================
 					// Update selection to current game
@@ -1292,17 +1257,13 @@ int main() {
 					if (config->verbose){
 						printf("%s.%d\t Finding gamedata from list for [%d]\n", __FILE__, __LINE__, state->selected_gameid);
 					}
-					t1 = xclock();
 					state->selected_game = getGameid(state->selected_gameid, gamedata);
-					t2 = xclock();
-					timers_Print(t1, t2, "- Lookup game", config->timers);
 					if (state->selected_game == NULL){
 						// Could not load gamedata object for this id - why?
 						// Reset to old gameid
 						if (config->verbose){
 							printf("%s.%d\t Warning, unable to find gamedata for Game ID %d, reverting to %d\n", __FILE__, __LINE__, state->selected_gameid, old_gameid);
 						}
-						has_screenshot = 0;
 						state->selected_gameid = old_gameid;
 						old_gameid = -1;
 					} else {
@@ -1310,39 +1271,31 @@ int main() {
 							if (config->verbose){
 								printf("%s.%d\t Allocating memory and loading metadata for [%s]\n", __FILE__, __LINE__, state->selected_game->name);
 							}
-							t1 = xclock();
 							status = getLaunchdata(state->selected_game, launchdat);
 							if (status != 0){
 								if (config->verbose){
 									printf("%s.%d\t Error, could not load metadata\n", __FILE__, __LINE__);	
 								}
-								//ui_StatusMessage("Error, could not load metadata!");
+								ui_StatusMessage("Error, could not load metadata!");
 								gfx_Flip();
 							} else {
 								state->has_launchdat = 1;
 							}
-							t2 = xclock();
-							timers_Print(t1, t2, "- Load metadata", config->timers);
-						} else {
-							state->has_launchdat = 0;
-							state->has_images = 0;
 						}
 						
 						// ======================
 						// Load list of artwork
 						// ======================
 						if (state->has_launchdat){
-							t1 = xclock();
 							if (config->verbose){
 								printf("%s.%d\t Building image list\n", __FILE__, __LINE__);
 							}
-							
 							status = getImageList(launchdat, imagefile);
 							if (status > 0){
 								state->has_images = 1;
+							} else {
+								ui_StatusMessage("No artwork for this title.");	
 							}
-							t2 = xclock();
-							timers_Print(t1, t2, "- Process artwork list", config->timers);
 						}
 										
 						// =======================
@@ -1365,12 +1318,8 @@ int main() {
 						if (config->verbose){
 							printf("%s.%d\t Updating info pane for new game\n", __FILE__, __LINE__);
 						}
-						t1 = xclock();
 						ui_UpdateInfoPane(state, gamedata, launchdat);
-						
 						old_gameid = state->selected_gameid;
-						t2 = xclock();
-						timers_Print(t1, t2, "- Update UI Info pane", config->timers);
 		
 						// Display artwork/first screenshot - or 'sorry no artwork found'
 						if (state->has_images){
@@ -1381,13 +1330,15 @@ int main() {
 								}
 								fclose(screenshot_file);
 								screenshot_file = NULL;
+								has_screenshot = 0;
 							}
 							screenshot_file = fopen(state->selected_image, "rb");
 							if (screenshot_file == NULL){
 								if (config->verbose){
 									printf("%s.%d\t Error opening new screenshot file\n", __FILE__, __LINE__);
 								}
-								has_screenshot = 0;
+								sprintf(msg, "Error opening %s", state->selected_image);
+								ui_StatusMessage(msg);
 							} 
 							else {
 								// =======================
@@ -1406,27 +1357,15 @@ int main() {
 									ui_StatusMessage(msg);
 									screenshot_bmp_state->rows_remaining = screenshot_bmp->height;
 									gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
-									sprintf(msg, "Streaming artwork...");
-									ui_StatusMessage(msg);
+									ui_StatusMessage("Streaming artwork ...");
+									flip = 0;
 								}
 							}
-							has_screenshot = 1;
-						} else {
-							// No artwork available, blank the artwork window
-							gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
-							
-							// Maybe print a message, no artwork available?
-							// TO DO
-							
-							// Disable the async disable of the image
-							has_screenshot = 0;
 						}
 					}
 					if (config->verbose){
 						printf("%s.%d\t New game successfully loaded\n", __FILE__, __LINE__);
 					}
-					end_time = xclock();
-					timers_Print(start_time, end_time, "Redraw New Game", config->timers);
 				}
 				gfx_Flip();
 				last = 0;
@@ -1441,8 +1380,9 @@ int main() {
 		//
 		// ===========================================================================
 		
-		if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining > 0)){
-			status = gvramBitmapAsync(ui_artwork_xpos, ui_artwork_ypos, screenshot_bmp, screenshot_file, screenshot_bmp_state);
+		if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining > 1)){
+		
+			status = gvramBitmapAsync(ui_artwork_xpos + ((ui_artwork_width - screenshot_bmp->width) / 2) , ui_artwork_ypos + ((ui_artwork_height - screenshot_bmp->height) / 2), screenshot_bmp, screenshot_file, screenshot_bmp_state);
 			switch(status){
 				case(GFX_ERR_UNSUPPORTED_BPP):
 					ui_StatusMessage("Artwork is an unsupported colour depth.");
@@ -1463,7 +1403,31 @@ int main() {
 					has_screenshot = 0;
 					break;
 			}
-		}			
+		} else if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining == 1)){
+			status = gvramBitmapAsync(ui_artwork_xpos + ((ui_artwork_width - screenshot_bmp->width) / 2) , ui_artwork_ypos + ((ui_artwork_height - screenshot_bmp->height) / 2), screenshot_bmp, screenshot_file, screenshot_bmp_state);
+			switch(status){
+				case(GFX_ERR_UNSUPPORTED_BPP):
+					ui_StatusMessage("Artwork is an unsupported colour depth.");
+					has_screenshot = 0;
+					break;
+				case(GFX_ERR_MISSING_BMPHEADER):
+					ui_StatusMessage("No image header supplied to async display.");
+					has_screenshot = 0;
+					break;
+				case(BMP_ERR_READ):
+					ui_StatusMessage("Error seeking within image file.");
+					has_screenshot = 0;
+					break;
+				case(GFX_OK):
+					ui_StatusMessage("Artwork loaded.");
+					has_screenshot = 0;
+					break;
+				default:
+					ui_StatusMessage("Unhandled return code from async display.");
+					has_screenshot = 0;
+					break;
+			}
+		}
 	}
 	
 	free(config);

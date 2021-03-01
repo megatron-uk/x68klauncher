@@ -30,8 +30,8 @@
 
 #define MAXIMUM_FILTER_STRINGS 			200
 #define MAXIMUM_SELECTED_STRINGS 		30
-#define MAXIMUM_FILTER_STRINGS_PER_PAGE  22
-#define MAXIMUM_FILTER_STRINGS_PER_COL 	6
+#define MAXIMUM_FILTER_STRINGS_PER_PAGE  32
+#define MAXIMUM_FILTER_STRINGS_PER_COL 	16
 
 typedef struct state {
 	unsigned char  selected_list[SELECTION_LIST_SIZE];		// A list of game ID's which are currently selected

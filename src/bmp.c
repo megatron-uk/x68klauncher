@@ -166,7 +166,7 @@ int bmp_ReadImage(FILE *bmp_image, bmpdata_t *bmpdata, uint8_t header, uint8_t d
 			bmpdata->size = (int) ceil((bmpdata->width * bmpdata->height) / 8.0f); 
 			bmpdata->n_pixels = bmpdata->size;
 		} else {
-			bmpdata->row_padded = (int)(4 * ceil((float)(bmpdata->width) / 4.0f)) * bmpdata->bytespp; // This needs moving from ceil/floating point!!!!
+			bmpdata->row_padded = (int)(4 * ceil((float)(bmpdata->width * bmpdata->bytespp) / 4.0f)); // This needs moving from ceil/floating point!!!!
 			bmpdata->row_unpadded = bmpdata->width * bmpdata->bytespp;
 			bmpdata->size = (bmpdata->width * bmpdata->height * bmpdata->bytespp);
 			bmpdata->n_pixels = bmpdata->width * bmpdata->height;
@@ -232,7 +232,7 @@ int bmp_ReadImage(FILE *bmp_image, bmpdata_t *bmpdata, uint8_t header, uint8_t d
 			// Seek to next set of pixels for the next row if row_unpadded < row_padded
 			if (status != bmpdata->row_unpadded){
 				// Seek the number of bytes left in this row
-				status = fseek(bmp_image, (bmpdata->row_padded - status), SEEK_CUR);
+				status = fseek(bmp_image, (bmpdata->row_padded - bmpdata->row_unpadded), SEEK_CUR);
 				if (status != 0){
 					if (BMP_VERBOSE){
 						printf("%s.%d\t Error seeking next row of pixels\n", __FILE__, __LINE__);
