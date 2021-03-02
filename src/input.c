@@ -24,8 +24,8 @@
 int input_get(){
 	// Read joystick or keyboard input and return directions or buttons pressed
 	
-	int k;
-	int j;
+	char k;
+	char j;
 	
 	// Direction cursor keys
 	k = _iocs_bitsns(input_group_left_right_up_down);
@@ -95,12 +95,12 @@ int input_get(){
 			printf("%s.%d\t input_get() Joystick code: (0x%x)\n", __FILE__, __LINE__, j);
 		}
 	}
-	if (j & 0xFB) return input_left;
-	if (j & 0xFB) return input_right;
-	if (j & 0xFE) return input_up;
-	if (j & 0xFD) return input_down;
-	if (j & 0xBF) return input_select;
-	if (j & 0xDF) return input_cancel;	
+	if (j & 0xFB) return input_joy_left;
+	if (j & 0xFB) return input_joy_right;
+	if (j & 0xFE) return input_joy_up;
+	if (j & 0xFD) return input_joy_down;
+	if (j & 0xBF) return input_joy_select;
+	if (j & 0xDF) return input_joy_cancel;	
 	
 	// No input
 	return input_none;

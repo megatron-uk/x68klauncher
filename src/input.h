@@ -40,7 +40,12 @@
 #define input_quit						0x0B
 #define input_filter						0x0C
 #define input_help						0x0D
-
+#define input_joy_up						0x0E
+#define input_joy_down					0x0F
+#define input_joy_left					0x10
+#define input_joy_right					0x11
+#define input_joy_select					0x12
+#define input_joy_cancel					0x13
 
 // Function prototypes
 int	input_get();

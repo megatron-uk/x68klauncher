@@ -235,6 +235,10 @@ int gvramBitmapAsync(int x, int y, bmpdata_t *bmpdata, FILE *bmpfile, bmpstate_t
 	int 			start_addr;	// The first pixel
 	int			new_y;
 	
+	if (GFX_VERBOSE){
+		printf("%s.%d\t gvramBitmapAsync() ...\n", __FILE__, __LINE__);
+	}
+	
 	if (bmpdata->bpp != 16){
 		return GFX_ERR_UNSUPPORTED_BPP;
 	}

@@ -51,6 +51,80 @@
 #include "ui.h"
 #include "timers.h"
 
+FILE *screenshot_file;
+
+int selectScreenshot(config_t *config, state_t *state, imagefile_t *imagefile, bmpdata_t *screenshot_bmp, bmpstate_t *screenshot_bmp_state){
+	// Select the next artwork and set up state variables ready to show it
+	
+	char msg[64];					// Message buffer
+	unsigned char has_screenshot;	// Keep track of whether the screenshot is available	
+	int status;						// Hold status value from function calls
+	
+	has_screenshot = 0;				// Default to not available
+	
+	// Get the filename of the selected artwork
+	if (config->verbose){
+		printf("%s.%d\t selectScreenshot() Selected artwork filename [%s]\n", __FILE__, __LINE__, imagefile->filename[imagefile->selected]);
+	}
+	sprintf(msg, "%s\\%s", state->selected_game->path, imagefile->filename[imagefile->selected]);
+	strncpy(state->selected_image, msg, 65);
+
+	// Close the file handle if opened previously
+	if (screenshot_file){
+		if (config->verbose){
+			printf("%s.%d\t selectScreenshot() Closing previous screenshot file\n", __FILE__, __LINE__);
+		}
+		fclose(screenshot_file);
+		screenshot_file = NULL;
+		has_screenshot = 0;
+	}
+	
+	// Open the new screenshot file
+	screenshot_file = fopen(state->selected_image, "rb");
+	
+	// Did we open it?
+	if (screenshot_file == NULL){
+		// No
+		if (config->verbose){
+			printf("%s.%d\t selectScreenshot() Error opening screenshot file %s\n", __FILE__, __LINE__,  state->selected_image);
+		}
+		sprintf(msg, "Error opening %s", state->selected_image);
+		ui_StatusMessage(msg);
+	} else {
+		// =======================
+		// Load header of screenshot bmp
+		// =======================
+		if (config->verbose){
+			printf("%s.%d\t selectScreenshot() Screenshot file opened\n", __FILE__, __LINE__);
+		}
+		status = bmp_ReadImage(screenshot_file, screenshot_bmp, 1, 0);
+		if (status != 0){
+			// BMP function call returned an error
+			ui_StatusMessage("Error, unable to read image header!");
+			has_screenshot = 0;
+		} else {
+			// We got the bmp data structure
+			if (config->verbose){
+				printf("%s.%d\t selectScreenshot() Header read: %d x %d @ %d bpp\n", __FILE__, __LINE__,  screenshot_bmp->width, screenshot_bmp->height, screenshot_bmp->bpp);
+			}
+			sprintf(msg, "Header read: %d x %d @ %d bpp", screenshot_bmp->width, screenshot_bmp->height, screenshot_bmp->bpp);
+			ui_StatusMessage(msg);
+			screenshot_bmp_state->rows_remaining = screenshot_bmp->height;
+			
+			// Blank the artwork window
+			gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
+			ui_StatusMessage("Streaming artwork ...");
+			
+			// Everything should be ready for the image display routine
+			has_screenshot = 1;
+		}
+	}
+	if (config->verbose){
+		printf("%s.%d\t selectScreenshot() Setting has_screenshot = %d\n", __FILE__, __LINE__,  has_screenshot);
+	}
+	return has_screenshot;	
+}
+
 int main() {
 	/* Lets get this show on the road!!! */
 	
@@ -77,7 +151,7 @@ int main() {
 	long int t1, t2;							// Performance counters, set 2
 	long int last;							// Timer for detecting last user input
 	
-	FILE *screenshot_file;					// File handle for artwork bitmap reading
+	//FILE *screenshot_file;					// File handle for artwork bitmap reading
 	int savefile;							// File handle for saving game list data
 	
 	state_t *state = NULL;					// Current state of the UI, including selected game, page, etc
@@ -620,8 +694,8 @@ int main() {
 	ui_StatusMessage("Waiting for user input...");
 	while (exit == 0){
 		//_dos_kflushin();
+		user_input = input_none;
 		user_input = input_get();
-		//
 		
 		// ==================================================
 		//
@@ -1061,8 +1135,8 @@ int main() {
 						}
 						
 						if (
-								((launchdat->start != NULL) && (strlen(launchdat->start) > 0)) && 
-								((launchdat->alt_start != NULL) && (strlen(launchdat->alt_start) > 0))
+							((launchdat->start != NULL) && (strlen(launchdat->start) > 0)) && 
+							((launchdat->alt_start != NULL) && (strlen(launchdat->alt_start) > 0))
 						){
 							// Start and alt_start defined
 							if (config->verbose){
@@ -1127,6 +1201,9 @@ int main() {
 						state->page_changed = 0;
 					}
 					ui_UpdateBrowserPaneStatus(state);
+					gfx_Flip();
+					// Update last to now so that we can trigger artwork in N ms.
+					last = xclock();
 					break;
 				case(input_down):
 					// Down current list by one row
@@ -1153,6 +1230,9 @@ int main() {
 						state->page_changed = 0;
 					}
 					ui_UpdateBrowserPaneStatus(state);
+					gfx_Flip();
+					// Update last to now so that we can trigger artwork in N ms.
+					last = xclock();
 					break;
 				case(input_scroll_up):
 					old_gameid = state->selected_gameid;					
@@ -1169,6 +1249,9 @@ int main() {
 					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					ui_UpdateBrowserPane(state, gamedata);
+					gfx_Flip();
+					// Update last to now so that we can trigger artwork in N ms.
+					last = xclock();
 					break;					
 				case(input_scroll_down):
 					old_gameid = state->selected_gameid;
@@ -1186,28 +1269,41 @@ int main() {
 					start_time = xclock();
 					ui_ReselectCurrentGame(state);
 					ui_UpdateBrowserPane(state, gamedata);
+					gfx_Flip();
+					// Update last to now so that we can trigger artwork in N ms.
+					last = xclock();
 					break;
 				case(input_left):
 					// Cycle left through artwork
-					if (imagefile->last > -1){
-						if (imagefile->selected > 0){
-							imagefile->selected -= 1;
-						} else {
-							imagefile->selected = imagefile->last;
+					if (state->has_images){
+						if (imagefile->last > -1){
+							if (imagefile->selected > 0){
+								imagefile->selected -= 1;
+							} else {
+								imagefile->selected = imagefile->last;
+							}
 						}
-						gfx_Flip();
+						has_screenshot = selectScreenshot(config, state, imagefile, screenshot_bmp, screenshot_bmp_state);
+						// Set last so that we immediately trigger artwork display
+						last = 0;
 					}
 					break;
 				case(input_right):
 					// Scroll right through artwork - if available
-					if (imagefile->last != -1){
-						if (imagefile->selected < imagefile->last){
-							imagefile->selected += 1;
-						} else {
-							imagefile->selected = imagefile->first;
+					if (state->has_images){
+						if (imagefile->last != -1){
+							if (imagefile->selected < imagefile->last){
+								imagefile->selected += 1;
+							} else {
+								imagefile->selected = imagefile->first;
+							}
 						}
-						gfx_Flip();
+						has_screenshot = selectScreenshot(config, state, imagefile, screenshot_bmp, screenshot_bmp_state);
+						// Set last so that we immediately trigger artwork display
+						last = 0;
 					}
+					break;
+				case(input_none):
 					break;
 				default:
 					break;
@@ -1297,20 +1393,7 @@ int main() {
 								ui_StatusMessage("No artwork for this title.");	
 							}
 						}
-										
-						// =======================
-						// Select first screenshot/artwork to show
-						// =======================
-						if (state->has_images){
-							if (imagefile->first > -1){
-								if (config->verbose){
-									printf("%s.%d\t Selected artwork filename [%s]\n", __FILE__, __LINE__, imagefile->filename[imagefile->first]);
-								}
-								sprintf(msg, "%s\\%s", state->selected_game->path, imagefile->filename[imagefile->first]);
-								strncpy(state->selected_image, msg, 65);
-							}
-						}
-						
+							
 						// =======================
 						// Updating info and browser pane
 						// =======================
@@ -1320,47 +1403,12 @@ int main() {
 						}
 						ui_UpdateInfoPane(state, gamedata, launchdat);
 						old_gameid = state->selected_gameid;
-		
-						// Display artwork/first screenshot - or 'sorry no artwork found'
+						
+						// =======================
+						// Select first screenshot/artwork to show
+						// =======================
 						if (state->has_images){
-							//ui_DisplayArtwork(screenshot_file, screenshot_bmp, screenshot_bmp_state, state, imagefile);
-							if (screenshot_file){
-								if (config->verbose){
-									printf("%s.%d\t Closing previously screenshot file\n", __FILE__, __LINE__);
-								}
-								fclose(screenshot_file);
-								screenshot_file = NULL;
-								has_screenshot = 0;
-							}
-							screenshot_file = fopen(state->selected_image, "rb");
-							if (screenshot_file == NULL){
-								if (config->verbose){
-									printf("%s.%d\t Error opening new screenshot file\n", __FILE__, __LINE__);
-								}
-								sprintf(msg, "Error opening %s", state->selected_image);
-								ui_StatusMessage(msg);
-							} 
-							else {
-								// =======================
-								// Load header of screenshot bmp
-								// =======================
-								if (config->verbose){
-									printf("%s.%d\t Screenshot file opened\n", __FILE__, __LINE__);
-								}
-								status = bmp_ReadImage(screenshot_file, screenshot_bmp, 1, 0);
-								if (status != 0){
-									ui_StatusMessage("Error, unable to read image header!");
-									has_screenshot = 0;
-								} else {
-									has_screenshot = 1;	
-									sprintf(msg, "Header read: %d x %d @ %d bpp", screenshot_bmp->width, screenshot_bmp->height, screenshot_bmp->bpp);
-									ui_StatusMessage(msg);
-									screenshot_bmp_state->rows_remaining = screenshot_bmp->height;
-									gvramBoxFill(ui_artwork_xpos, ui_artwork_ypos, ui_artwork_xpos + ui_artwork_width, ui_artwork_ypos + ui_artwork_height, PALETTE_UI_BLACK);
-									ui_StatusMessage("Streaming artwork ...");
-									flip = 0;
-								}
-							}
+							has_screenshot = selectScreenshot(config, state, imagefile, screenshot_bmp, screenshot_bmp_state);
 						}
 					}
 					if (config->verbose){
@@ -1368,7 +1416,7 @@ int main() {
 					}
 				}
 				gfx_Flip();
-				last = 0;
+				last = xclock();
 			}
 		}
 		
@@ -1381,7 +1429,6 @@ int main() {
 		// ===========================================================================
 		
 		if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining > 1)){
-		
 			status = gvramBitmapAsync(ui_artwork_xpos + ((ui_artwork_width - screenshot_bmp->width) / 2) , ui_artwork_ypos + ((ui_artwork_height - screenshot_bmp->height) / 2), screenshot_bmp, screenshot_file, screenshot_bmp_state);
 			switch(status){
 				case(GFX_ERR_UNSUPPORTED_BPP):
@@ -1406,18 +1453,6 @@ int main() {
 		} else if ((has_screenshot != 0) && (screenshot_bmp_state->rows_remaining == 1)){
 			status = gvramBitmapAsync(ui_artwork_xpos + ((ui_artwork_width - screenshot_bmp->width) / 2) , ui_artwork_ypos + ((ui_artwork_height - screenshot_bmp->height) / 2), screenshot_bmp, screenshot_file, screenshot_bmp_state);
 			switch(status){
-				case(GFX_ERR_UNSUPPORTED_BPP):
-					ui_StatusMessage("Artwork is an unsupported colour depth.");
-					has_screenshot = 0;
-					break;
-				case(GFX_ERR_MISSING_BMPHEADER):
-					ui_StatusMessage("No image header supplied to async display.");
-					has_screenshot = 0;
-					break;
-				case(BMP_ERR_READ):
-					ui_StatusMessage("Error seeking within image file.");
-					has_screenshot = 0;
-					break;
 				case(GFX_OK):
 					ui_StatusMessage("Artwork loaded.");
 					has_screenshot = 0;
