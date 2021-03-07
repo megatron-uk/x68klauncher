@@ -73,13 +73,13 @@ int ini_parse_string(const char* string, ini_handler handler, void* user);
    configparser. If allowed, ini_parse() will call the handler with the same
    name for each subsequent line parsed. */
 #ifndef INI_ALLOW_MULTILINE
-#define INI_ALLOW_MULTILINE 1
+#define INI_ALLOW_MULTILINE 0
 #endif
 
 /* Nonzero to allow a UTF-8 BOM sequence (0xEF 0xBB 0xBF) at the start of
    the file. See https://github.com/benhoyt/inih/issues/21 */
 #ifndef INI_ALLOW_BOM
-#define INI_ALLOW_BOM 1
+#define INI_ALLOW_BOM 0
 #endif
 
 /* Chars that begin a start-of-line comment. Per Python configparser, allow
@@ -138,7 +138,7 @@ int ini_parse_string(const char* string, ini_handler handler, void* user);
    call the handler with value NULL in this case. Default is to treat
    no-value lines as an error. */
 #ifndef INI_ALLOW_NO_VALUE
-#define INI_ALLOW_NO_VALUE 0
+#define INI_ALLOW_NO_VALUE 1
 #endif
 
 #ifdef __cplusplus

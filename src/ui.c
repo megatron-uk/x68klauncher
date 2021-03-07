@@ -1429,6 +1429,9 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 	//selected_game = getGameid(state->selected_gameid, gamedata);
 	
 	// Clear all existing text
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_UpdateInfoPane() Clearing previous text\n", __FILE__, __LINE__);
+	}
 	tvramClear8x16(ui_info_name_text_xpos, ui_info_name_text_ypos, 30);
 	tvramClear8x16(ui_info_year_text_xpos, ui_info_year_text_ypos, 8);
 	tvramClear8x16(ui_info_company_text_xpos, ui_info_company_text_ypos, 26);
@@ -1437,8 +1440,14 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 	
 	// See if it has a launch.dat metadata file
 	if (state->selected_game != NULL){
+		if (UI_VERBOSE){
+			printf("%s.%d\t ui_UpdateInfoPane() Game is selected\n", __FILE__, __LINE__);
+		}
 		if (state->selected_game->has_dat != 0){
 			if (launchdat == NULL){
+				if (UI_VERBOSE){
+					printf("%s.%d\t ui_UpdateInfoPane() Game has launch data\n", __FILE__, __LINE__);
+				}
 				// ======================
 				// Unable to load launch.dat	 from disk
 				// ======================
@@ -1458,12 +1467,18 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 				gvramBitmap(ui_checkbox_has_metadata_xpos, ui_checkbox_has_metadata_ypos, ui_checkbox_bmp);
 				
 				if (state->has_images == 1){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Adding has_images checkbox\n", __FILE__, __LINE__);
+					}
 					gvramBitmap(ui_checkbox_has_images_xpos, ui_checkbox_has_images_ypos, ui_checkbox_bmp);
 				} else {
 					gvramBitmap(ui_checkbox_has_images_xpos, ui_checkbox_has_images_ypos, ui_checkbox_empty_bmp);	
 				}
 				
 				if (launchdat->realname != NULL){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides a real name\n", __FILE__, __LINE__);
+					}
 					if (strlen(launchdat->realname) > 30){
 						sprintf(info_name, " %.28s..", launchdat->realname);
 					} else {
@@ -1474,12 +1489,18 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 				}
 				
 				if (launchdat->genre != NULL){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides a genre\n", __FILE__, __LINE__);
+					}
 					sprintf(info_genre, "%.10s", launchdat->genre);
 				} else {
 					sprintf(info_genre, "N/A");
 				}
 				
 				if (launchdat->year != 0){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides a year\n", __FILE__, __LINE__);
+					}
 					sprintf(info_year, "%4d", launchdat->year);
 				} else {
 					sprintf(info_year, "N/A");
@@ -1490,7 +1511,9 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 				
 				// If we have publisher and developer, print both
 				if ((s1 > 0) && (s2 > 0)){
-					
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides developer and publisher\n", __FILE__, __LINE__);
+					}
 					if (s1 + s2 <= 25){
 						sprintf(info_company, " %s/%s", launchdat->developer, launchdat->publisher);
 					} else {
@@ -1509,10 +1532,16 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 					
 				// If we just have developer, print that
 				} else if (strlen(launchdat->developer) > 0){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides only a developer\n", __FILE__, __LINE__);
+					}
 					sprintf(info_company, " %.25s", launchdat->developer);
 					
 				// If we just have publisher, print that
 				} else if (strlen(launchdat->publisher) > 0){
+					if (UI_VERBOSE){
+						printf("%s.%d\t ui_UpdateInfoPane() Launch data provides only a publisher\n", __FILE__, __LINE__);
+					}
 					sprintf(info_company, " %.25s", launchdat->publisher);
 					
 				// If we have nothing...
@@ -1536,11 +1565,13 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 					printf("%s.%d\t ui_UpdateInfoPane()  - has_images: (%d)\n", __FILE__, __LINE__, state->has_images);
 				}
 			}
-			free(launchdat);
 		} else {
 			// ======================
 			// We can only use the basic directory information
 			// ======================
+			if (UI_VERBOSE){
+				printf("%s.%d\t ui_UpdateInfoPane() Game has no launch data\n", __FILE__, __LINE__);
+			}
 			gvramBitmap(ui_checkbox_has_metadata_xpos, ui_checkbox_has_metadata_ypos, ui_checkbox_empty_bmp);
 			gvramBitmap(ui_checkbox_has_metadata_startbat_xpos, ui_checkbox_has_metadata_startbat_ypos, ui_checkbox_empty_bmp);
 			gvramBitmap(ui_checkbox_has_images_xpos, ui_checkbox_has_images_ypos, ui_checkbox_empty_bmp);
@@ -1564,6 +1595,9 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 		// ======================
 		// Error in logic, gameid is not set
 		// ======================
+		if (UI_VERBOSE){
+			printf("%s.%d\t ui_UpdateInfoPane() Error, No entry for this game!\n", __FILE__, __LINE__);
+		}
 		sprintf(status_msg, "ERROR, unable to find gamedata object for ID %d", state->selected_gameid);
 		ui_StatusMessage(status_msg);
 		return UI_OK;
@@ -1572,6 +1606,9 @@ int ui_UpdateInfoPane(state_t *state, gamedata_t *gamedata, launchdat_t *launchd
 	// ===========================
 	// Now print out all data, regardless of source
 	// ===========================
+	if (UI_VERBOSE){
+		printf("%s.%d\t ui_UpdateInfoPane() Update text boxes\n", __FILE__, __LINE__);
+	}
 	tvramPuts(ui_info_name_text_xpos, ui_info_name_text_ypos, ui_progress_font, info_name);
 	tvramPuts(ui_info_year_text_xpos, ui_info_year_text_ypos, ui_progress_font, info_year);
 	tvramPuts(ui_info_company_text_xpos, ui_info_company_text_ypos, ui_progress_font, info_company);
