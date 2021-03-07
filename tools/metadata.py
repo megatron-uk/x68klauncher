@@ -44,7 +44,7 @@ LAUNCHBOX_IMAGE_URL = "https://images.launchbox-app.com/"
 
 # Which API to use
 USE_MOBYGAMES = False
-USE_LAUNCHBOX = False
+USE_LAUNCHBOX = True
 
 if os.path.exists(LAUNCHBOX_XML):
 	print("Found %s, you can use the Launchbox API if needed" % LAUNCHBOX_XML)
@@ -855,7 +855,7 @@ def main():
 												open(game_output_path + "/" + image_name, 'wb').write(r.content)
 				
 												# Use imagemagick to convert from web format to 16bit, 256x256, BMP
-												cmd = """cd %s  && convert -resize 256x256 -type truecolor -define bmp:subtype=RGB565 %s %s.bmp && rm %s""" % (game_output_path, image_name, image_name, image_name)
+												cmd = """cd "%s"  && convert -resize 256x256 -type truecolor -define bmp:subtype=RGB565 %s %s.bmp && rm %s""" % (game_output_path, image_name, image_name, image_name)
 												print("Converting %s of %s" % (i, len(selected_images)))
 												status = subprocess.run(cmd, shell=True, check=True)
 												if status.returncode == 0:
