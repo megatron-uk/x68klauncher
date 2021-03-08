@@ -2,8 +2,10 @@
 
 ----
 
-### tgatool.c
+### metadata.py
 
-A simple tool, from neko68k on the NFG Forums to convert an 8bit TGA graphic to a pair of PCG and PAL files, suitable for use in loading directly to PCG RAM and Palette RAM.
+A tool to scrape metadata from Mobygames or from Launchbox, using the output from `launcher.X` when run in 'save' mode.
 
-No external dependencies, build with either `gcc tgatool.c -o tgatool` or via `make` and the included `Makefile`.
+Place the resulting 'launcher.txt' file in this directory and run metadata.py to download metadata and generate 'launch.dat' and artwork images.
+
+Note: For mobygames, you will need a valid API key.
