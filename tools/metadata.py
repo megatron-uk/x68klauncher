@@ -7,7 +7,7 @@ import time
 import requests
 import subprocess
 
-API_KEY = "HB3gLh7L6hGdPZyILtrw1g=="
+from mobygames import API_KEY
 
 search_payload = {
 	'api_key' : API_KEY,
@@ -22,7 +22,7 @@ detail_payload = {
 
 SEARCH_URL 		= "https://api.mobygames.com/v1/games"
 DETAIL_URL 		= "https://api.mobygames.com/v1/games/"
-PLATFORM_URL	= "https://api.mobygames.com/v1/games/"
+PLATFORM_URL		= "https://api.mobygames.com/v1/games/"
 
 MY_PLATFORM 	= "Sharp X68000"
 
